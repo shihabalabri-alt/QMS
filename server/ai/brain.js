@@ -8,6 +8,7 @@ const db = require('../db');
 const config = require('../config');
 const { MODULES, findByCode, CODE_TO_MODULE } = require('../modules');
 const { daysUntil, riskRating } = require('../utils');
+const guide = require('./guide');
 
 const q = (sql, ...args) => db.prepare(sql).all(...args);
 const q1 = (sql, ...args) => db.prepare(sql).get(...args);
@@ -625,6 +626,9 @@ const INTENTS = [
 ];
 
 function ask(question, user) {
+  // Site-guide questions: built-in knowledge, no database trip.
+  const guided = guide.answerSiteGuide(question, user);
+  if (guided) return { ...guided, question };
   const c = collect(user);
   const A = analyze(c, user);
   const mentions = entityMentions(question);
@@ -651,6 +655,9 @@ function ask(question, user) {
     }
   }
   if (/trend|kpi|performance/i.test(question)) return { ...answerTrend(c, A, user, null), question };
+
+  // Off-topic: refuse politely instead of guessing.
+  if (guide.isOffTopic(question)) return { ...guide.offTopicAnswer(user), question };
 
   // fallback: attention + guidance
   const a = answerAttention(c, A, user);

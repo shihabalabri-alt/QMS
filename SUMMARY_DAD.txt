@@ -1,8 +1,9 @@
 QMS Website — What I Fixed (Sept 2026)
 
-PUBLIC LINK (live, permanent): https://qualicore-qms.fly.dev
+PUBLIC LINK (live, permanent): https://qualicore-qms.onrender.com
 Login: admin@qms.io / Admin123!
-Works 24/7, laptop can be off. First visit may take ~1 min to wake up.
+Free hosting: works 24/7 with laptop off, worldwide. Sleeps when idle
+(~1 min first-visit wake-up). Database resets on sleep (free plan).
 
 PROBLEM: The QMS website was showing a blank white screen for no reason.
 
@@ -53,4 +54,4 @@ downloads any report (risks, suppliers, documents, audits, etc.) as a CSV file.
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000
-Public link: https://qualicore-qms.fly.dev (permanent, works with laptop off)
+Public link: https://qualicore-qms.onrender.com (permanent, free, laptop can be off)

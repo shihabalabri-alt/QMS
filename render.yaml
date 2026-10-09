@@ -2,7 +2,7 @@ services:
   - type: web
     name: qualicore-qms
     runtime: node
-    buildCommand: npm install && cd client && npm install && npm run build
+    buildCommand: npm install && cd client && npm install --include=dev && npm run build
     startCommand: npm start
     plan: free
     healthCheckPath: /

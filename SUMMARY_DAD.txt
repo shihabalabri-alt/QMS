@@ -1,0 +1,56 @@
+QMS Website — What I Fixed (Sept 2026)
+
+PUBLIC LINK (live, permanent): https://qualicore-qms.fly.dev
+Login: admin@qms.io / Admin123!
+Works 24/7, laptop can be off. First visit may take ~1 min to wake up.
+
+PROBLEM: The QMS website was showing a blank white screen for no reason.
+
+ROOT CAUSE: Seven missing-import bugs in the React code. Each one caused the
+entire page to crash and go blank when that feature was visited.
+
+THE SEVEN FIXES (all in the client React app):
+
+1. Layout.jsx — Added "useCallback" to the React import. (This was the worst:
+   it crashed the whole app on every page.)
+
+2. ModuleDetail.jsx — Added "EmptyState" to the UI import. (Fixed: History tab
+   crashed on any policy with no history entries.)
+
+3. ConnectionsMap.jsx — Added "StatCard" to the UI import. (Fixed: /connections
+   page crashed.)
+
+4. ConnectionsMap.jsx — Fixed a node-position bug: added "node: n" when storing
+   positions, so the render could read the node type/link correctly.
+
+5. CompetencyMatrix.jsx — Added "Link" from react-router-dom import. (Fixed:
+   /competency-matrix page crashed.)
+
+6. IntelligenceDashboard.jsx (/ai) — Added "Badge" to the UI import. (Fixed:
+   dashboard crashed when rendering status badges.)
+
+7. ModuleDetail.jsx — Added "selfType" and "selfId" props to <RelatedInfo>
+   component, so it didn't try to load /api/links/undefined/undefined (404 error).
+
+ADDITIONAL FIX: Added an ErrorBoundary component so any future render error
+shows a red screen instead of a blank white page.
+
+CACHE FIX: Added "no-store" Cache-Control header to the server so the browser
+never caches a broken build (this was causing the white page to come back after
+a fix was deployed).
+
+VERIFICATION: After all fixes, the full website was tested end-to-end:
+- All 15 module pages load without errors
+- Create, Edit, Delete work for documents, policies, risks
+- History, Comments, Search, Reports, Notifications all work
+- Default routing rules seed and escalation checks work
+- No white screens on any page
+
+RESULT: The QMS website now runs fully functional with no blank pages.
+
+NEW FEATURE ADDED: CSV export button on the Reports page — always visible,
+downloads any report (risks, suppliers, documents, audits, etc.) as a CSV file.
+
+Login: admin@qms.io / Admin123!
+Server: http://localhost:4000
+Public link: https://qualicore-qms.fly.dev (permanent, works with laptop off)

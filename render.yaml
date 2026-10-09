@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: qualicore-qms
+    runtime: node
+    buildCommand: npm install && cd client && npm install && npm run build
+    startCommand: npm start
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+# NOTE (Render free): no persistent disk, so server/data/qms.db resets
+# whenever the service sleeps/restarts. Demo + browsing stay perfect.

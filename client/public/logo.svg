@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220">
+  <defs>
+    <linearGradient id="qcb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4f9bff"/>
+      <stop offset="1" stop-color="#0d47c4"/>
+    </linearGradient>
+    <linearGradient id="qcg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7ed957"/>
+      <stop offset="1" stop-color="#2f8f1f"/>
+    </linearGradient>
+  </defs>
+  <!-- Left (blue) half of the shield-hexagon -->
+  <path d="M96 24 L38 57 L38 137 L98 174"
+        fill="none" stroke="url(#qcb)" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Right (green) half -->
+  <path d="M124 30 L182 63 L182 141 L126 176"
+        fill="none" stroke="url(#qcg)" stroke-width="21" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Ascending bars (performance) -->
+  <rect x="76"  y="112" width="14" height="34" rx="4" fill="url(#qcb)"/>
+  <rect x="98"  y="96"  width="14" height="50" rx="4" fill="url(#qcb)"/>
+  <rect x="120" y="80"  width="14" height="66" rx="4" fill="url(#qcb)"/>
+  <rect x="142" y="64"  width="14" height="70" rx="4" fill="url(#qcb)"/>
+  <!-- Green swoosh forming the tail of the Q -->
+  <path d="M60 148 C90 172 138 172 178 140 C150 158 104 156 74 134 C68 130 62 136 60 148 Z"
+        fill="url(#qcg)"/>
+</svg>

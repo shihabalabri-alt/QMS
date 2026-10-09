@@ -1,0 +1,9 @@
+node_modules
+client/node_modules
+client/dist
+server/data
+server/*.log
+*.log
+tunnel*.log
+.git
+fly.toml

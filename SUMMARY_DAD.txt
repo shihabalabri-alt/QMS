@@ -49,8 +49,8 @@ VERIFICATION: After all fixes, the full website was tested end-to-end:
 
 RESULT: The QMS website now runs fully functional with no blank pages.
 
-NEW FEATURE ADDED: CSV export button on the Reports page — always visible,
-downloads any report (risks, suppliers, documents, audits, etc.) as a CSV file.
+NEW: Do-AI — tell it "open documents on Quality Manual" or "take me to
+the risk register" and it OPENS it for you. Also "turn on dark mode".
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

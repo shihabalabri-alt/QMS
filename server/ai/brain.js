@@ -10,6 +10,7 @@ const { MODULES, findByCode, CODE_TO_MODULE } = require('../modules');
 const { daysUntil, riskRating } = require('../utils');
 const guide = require('./guide');
 const doer = require('./do');
+const maker = require('./make');
 
 const q = (sql, ...args) => db.prepare(sql).all(...args);
 const q1 = (sql, ...args) => db.prepare(sql).get(...args);
@@ -631,6 +632,11 @@ function ask(question, user) {
   try {
     const acted = doer.interpret(question, user);
     if (acted) return { ...acted, question };
+  } catch {}
+  // Make-actions second: "create / add / log ..." drafts a record, human confirms.
+  try {
+    const made = maker.interpret(question, user);
+    if (made) return { ...made, question };
   } catch {}
   // Site-guide questions: built-in knowledge, no database trip.
   const guided = guide.answerSiteGuide(question, user);

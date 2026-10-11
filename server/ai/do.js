@@ -107,6 +107,8 @@ function interpret(question, user) {
   }
 
   if (!hasVerb) return null;
+  // How-to questions belong to the site guide ("how do I open..." teaches, doesn't jump).
+  if (/\bhow (do|can|to|should)|where do|what is|explain|teach|show me how\b/i.test(q) && !/\b(open it|take me|go to|navigate)\b/i.test(q)) return null;
 
   // --- "open RSK-0001" style: verb + exact code => open the record ---
   const codeHit = (q.match(/\b(NC|CAPA|INC|RSK|SUP|DOC|POL|ACT|EQ|AUD|KPI|OBJ|ASM|TRN|REC|DR|CR|MR|EMP|CMP)-\d{1,6}\b/i) || [])[0];

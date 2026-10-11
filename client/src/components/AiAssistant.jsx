@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Icon, Badge, fmtDateTime } from '../lib/ui';
+import { Icon, Badge, fmtDateTime, showToast } from '../lib/ui';
 
 const QUICK = [
   'Show me what needs attention',
@@ -71,11 +71,26 @@ export function applyClientAction(a) {
 
 export function ActionButtons({ actions }) {
   const nav = useNavigate();
+  const [busy, setBusy] = useState(false);
   if (!actions || !actions.length) return null;
+  const runApi = async (a) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const d = await api.post(a.url, a.body);
+      const row = d.row || d;
+      showToast(`Created ${row.code || 'record'}`);
+      if (row && row.id && a.navigateTo) nav(`${a.navigateTo}/${row.id}`);
+      else if (a.navigateTo) nav(a.navigateTo);
+    } catch (e) { showToast(e.message, 'error'); }
+    setBusy(false);
+  };
   return (
     <div className="mb-3" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       {actions.map((a, i) => a.kind === 'client'
         ? <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} onClick={() => applyClientAction(a)}><Icon name="send" size={14} /> {a.label}</button>
+        : a.kind === 'api'
+        ? <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} disabled={busy} onClick={() => runApi(a)}><Icon name="plus" size={14} /> {busy ? 'Creating…' : a.label}</button>
         : <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} onClick={() => a.link && nav(a.link)}><Icon name="link" size={14} /> {a.label} →</button>
       )}
     </div>

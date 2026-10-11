@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Icon, Spinner, Badge, Modal, showToast } from '../lib/ui';
-import { AnswerBody } from '../components/AiAssistant';
+import { AnswerBody, applyClientAction } from '../components/AiAssistant';
 
 const QUICK = [
+  'Open documents on Quality Manual',
+  'Take me to the risk register',
   'Show me what needs attention',
   'Which risks are getting worse?',
   'Which suppliers have repeated problems?',
   'Which documents need review?',
-  'What information is missing?',
-  'Prepare a management review summary',
-  'How are the KPIs trending?',
-  'What compliance gaps do we have?'
+  'Turn on dark mode'
 ];
 
 export default function AiConsole() {
   const [params] = useSearchParams();
+  const nav = useNavigate();
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState(params.get('q') || '');
   const [busy, setBusy] = useState(false);
@@ -30,6 +30,13 @@ export default function AiConsole() {
     try {
       const d = await api.post('/ai/ask', { question });
       setMsgs(m => [...m, { role: 'ai', answer: d.answer }]);
+      // The AI does things: auto-run its primary action (open page / record / theme).
+      try {
+        const acts = (d.answer && d.answer.actions) || [];
+        for (const a of acts.filter(x => x.auto)) applyClientAction(a);
+        const go = acts.find(x => x.auto && x.link);
+        if (go) { showToast('Opening: ' + (go.label || go.link)); setTimeout(() => nav(go.link), 900); }
+      } catch {}
     } catch (e) { setMsgs(m => [...m, { role: 'ai', error: e.message }]); }
     setBusy(false);
   };

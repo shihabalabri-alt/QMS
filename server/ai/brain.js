@@ -9,6 +9,7 @@ const config = require('../config');
 const { MODULES, findByCode, CODE_TO_MODULE } = require('../modules');
 const { daysUntil, riskRating } = require('../utils');
 const guide = require('./guide');
+const doer = require('./do');
 
 const q = (sql, ...args) => db.prepare(sql).all(...args);
 const q1 = (sql, ...args) => db.prepare(sql).get(...args);
@@ -626,6 +627,11 @@ const INTENTS = [
 ];
 
 function ask(question, user) {
+  // Do-actions first: "open / take me to / find ..." executes navigation + record opening.
+  try {
+    const acted = doer.interpret(question, user);
+    if (acted) return { ...acted, question };
+  } catch {}
   // Site-guide questions: built-in knowledge, no database trip.
   const guided = guide.answerSiteGuide(question, user);
   if (guided) return { ...guided, question };

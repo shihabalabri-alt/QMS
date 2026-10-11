@@ -19,6 +19,7 @@ function SectionLabel({ kind }) {
     facts: ['Facts (from live data)', 'sl-facts', 'check'],
     findings: ['Possible findings', 'sl-findings', 'alert'],
     recommendations: ['Recommendations', 'sl-recs', 'action'],
+    actions: ['AI action — tap to go', 'sl-recs', 'link'],
     evidence: ['Evidence & citations', 'sl-evidence', 'link']
   };
   const [label, cls, icon] = map[kind] || [kind, 'sl-evidence', 'link'];
@@ -33,6 +34,7 @@ export function AnswerBody({ answer }) {
         <span className="code-chip">intent: {answer.intent}</span>
         <span className="code-chip">scope: {answer.scope}</span>
       </div>
+      {answer.actions?.length > 0 && <><SectionLabel kind="actions" /><ActionButtons actions={answer.actions} /></>}
       {answer.facts.length > 0 && <>
         <SectionLabel kind="facts" />
         <ul className="ai-list">{answer.facts.map((f, i) => <li key={i}>{renderText(f, nav)}</li>)}</ul>
@@ -57,6 +59,28 @@ export function AnswerBody({ answer }) {
   );
 }
 
+export function applyClientAction(a) {
+  if (!a || a.kind !== 'client') return false;
+  if (a.op === 'theme' && (a.value === 'dark' || a.value === 'light')) {
+    document.documentElement.dataset.theme = a.value;
+    try { localStorage.setItem('qms-theme', a.value); } catch {}
+    return true;
+  }
+  return false;
+}
+
+export function ActionButtons({ actions }) {
+  const nav = useNavigate();
+  if (!actions || !actions.length) return null;
+  return (
+    <div className="mb-3" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {actions.map((a, i) => a.kind === 'client'
+        ? <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} onClick={() => applyClientAction(a)}><Icon name="send" size={14} /> {a.label}</button>
+        : <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} onClick={() => a.link && nav(a.link)}><Icon name="link" size={14} /> {a.label} →</button>
+      )}
+    </div>
+  );
+}
 export function renderText(text, nav) {
   const parts = String(text).split(/(\b(?:NC|CAPA|INC|RSK|SUP|DOC|POL|ACT|EQ|AUD|KPI|OBJ|ASM|TRN|REC|DR|CR|MR|EMP|CMP)-\d{1,6}\b)/g);
   return parts.map((p, i) => {
@@ -107,6 +131,13 @@ export default function AiAssistant() {
     try {
       const d = await api.post('/ai/ask', { question });
       setMsgs(m => [...m, { role: 'ai', answer: d.answer }]);
+      // The AI does things: auto-run its primary action (open page / record / theme).
+      try {
+        const acts = (d.answer && d.answer.actions) || [];
+        for (const a of acts.filter(x => x.auto)) applyClientAction(a);
+        const go = acts.find(x => x.auto && x.link);
+        if (go) setTimeout(() => nav(go.link), 900);
+      } catch {}
     } catch (e) {
       setMsgs(m => [...m, { role: 'ai', error: e.message }]);
     }

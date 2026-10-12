@@ -5,11 +5,11 @@ import { Icon, Spinner, Badge, Modal, showToast } from '../lib/ui';
 import { AnswerBody, applyClientAction } from '../components/AiAssistant';
 
 const QUICK = [
+  'What needs my signature?',
   'Open documents on Quality Manual',
   'Take me to the risk register',
   'Create an action to call the supplier',
   'Show me what needs attention',
-  'Which risks are getting worse?',
   'Which documents need review?',
   'Turn on dark mode'
 ];

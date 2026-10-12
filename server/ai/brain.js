@@ -11,6 +11,7 @@ const { daysUntil, riskRating } = require('../utils');
 const guide = require('./guide');
 const doer = require('./do');
 const maker = require('./make');
+const flow = require('./flow');
 
 const q = (sql, ...args) => db.prepare(sql).all(...args);
 const q1 = (sql, ...args) => db.prepare(sql).get(...args);
@@ -637,6 +638,11 @@ function ask(question, user) {
   try {
     const made = maker.interpret(question, user);
     if (made) return { ...made, question };
+  } catch {}
+  // Flow-actions third: "approve / submit / close / complete ..." prepares the move, human confirms.
+  try {
+    const moved = flow.interpret(question, user);
+    if (moved) return { ...moved, question };
   } catch {}
   // Site-guide questions: built-in knowledge, no database trip.
   const guided = guide.answerSiteGuide(question, user);

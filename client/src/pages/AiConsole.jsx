@@ -5,6 +5,7 @@ import { Icon, Spinner, Badge, Modal, showToast } from '../lib/ui';
 import { AnswerBody, applyClientAction } from '../components/AiAssistant';
 
 const QUICK = [
+  'Brief me',
   'What needs my signature?',
   'Open documents on Quality Manual',
   'Take me to the risk register',

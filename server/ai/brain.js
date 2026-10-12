@@ -441,6 +441,54 @@ function answerAttention(c, A, user) {
   return a;
 }
 
+function answerBriefing(c, A, user) {
+  const a = baseAnswer('briefing', user);
+  const T = new Date().toISOString().slice(0, 10);
+  const day = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+  const first = (user.name || 'there').split(' ')[0];
+  const n = x => (x || []).length;
+
+  const overdue = A.overdueActions, crit = overdue.filter(x => x.priority === 'critical');
+  const mineOverdue = overdue.filter(x => x.owner_id === user.id);
+  const nonComp = A.complianceGaps.filter(g => g.status === 'non_compliant');
+  const calOver = A.calibrationDue.filter(e => e.next_calibration && e.next_calibration < T);
+  const docsOver = A.docsForReview.filter(d => d.review_date && d.review_date < T);
+  const heat = crit.length + nonComp.length + n(A.highResidualRisks);
+
+  a.facts.push(`Good morning, ${first} — ${day}. Your company in 30 seconds:`);
+  a.facts.push(heat === 0 && !overdue.length
+    ? `Calm day: nothing critical, nothing non-compliant, no high residual risks.`
+    : `Verdict: ${heat > 3 ? 'red day' : heat > 0 ? 'busy day' : 'steady day'} — ${heat} critical-level item(s), ${n(overdue)} overdue action(s).`);
+  a.facts.push(`Actions: ${n(overdue)} overdue${crit.length ? ` (${crit.length} critical)` : ''}${mineOverdue.length ? `, ${mineOverdue.length} of them yours` : ''} · ${n(A.dueSoonActions)} due within 7 days.`);
+  a.facts.push(`Risks: ${n(A.highResidualRisks)} high residual · ${n(A.overdueRiskReviews)} review(s) overdue.`);
+  a.facts.push(`Quality events: ${n(A.openNCs)} open NCs/incidents${n(A.overdueNCs) ? ` (${n(A.overdueNCs)} open >30 days)` : ''}.`);
+  if (n(nonComp) || n(A.complianceGaps)) a.facts.push(`Compliance: ${n(nonComp)} non-compliant · ${n(A.complianceGaps)} gap(s) total.`);
+  const extras = [];
+  if (docsOver.length) extras.push(`${docsOver.length} document review(s) overdue`);
+  if (n(A.policiesForReview)) extras.push(`${n(A.policiesForReview)} polic(ies) due`);
+  if (calOver.length) extras.push(`${calOver.length} calibration(s) overdue`);
+  if (n(A.kpisOffTarget)) extras.push(`${n(A.kpisOffTarget)} of ${n(A.kpis)} KPIs off target`);
+  if (n(A.expiringAssessments)) extras.push(`${n(A.expiringAssessments)} qualification(s) expiring/expired`);
+  if (n(A.pendingSuppliers)) extras.push(`${n(A.pendingSuppliers)} supplier(s) pending`);
+  if (n(A.openAuditFindings)) extras.push(`${n(A.openAuditFindings)} audit finding(s) open`);
+  if (extras.length) a.facts.push('Also on the radar: ' + extras.join(' · ') + '.');
+
+  const top = A.attention.slice(0, 5);
+  if (top.length) {
+    a.facts.push(`Today's top ${top.length} — work top-down:`);
+    for (const it of top) {
+      a.facts.push(`• ${it.code} "${it.title}" — ${it.why}`);
+      cite(a, it.type, it.code, it.title);
+    }
+    a.evidence = A.attention.slice(0, 10);
+    a.recommendations.push(`Start with ${top[0].code} — highest risk score (${top[0].pts} pts).`);
+  } else {
+    a.recommendations.push('Nothing urgent — a good day for reviews and prevention work.');
+  }
+  a.recommendations.push(`Ask "what needs my signature?" to see your approval pile.`);
+  return a;
+}
+
 function answerWorseningRisks(c, A, user) {
   const a = baseAnswer('risks_worsening', user);
   const list = A.worseningRisks;
@@ -614,6 +662,7 @@ function answerMissing(c, A, user) {
 }
 
 const INTENTS = [
+  { id: 'briefing', match: /brief(ing)?|morning briefing|daily (brief|summary|report)|what( is|'s)? (happening|new|going on)|today'?s priorit|rundown|catch me up|how is the company|company status/i, run: answerBriefing },
   { id: 'mgmt_review', match: /management review|mgmt review|review draft/i, run: answerMgmtDraft },
   { id: 'worsening', match: /worse|worsen|deteriorat|getting bad|increasing risk/i, run: answerWorseningRisks },
   { id: 'suppliers', match: /supplier|vendor/i, run: answerSupplierProblems },

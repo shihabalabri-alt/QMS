@@ -18,7 +18,7 @@ r.post('/ask', async (req, res) => {
   if (!question) return res.status(400).json({ error: 'Question required' });
   if (question.length > 500) return res.status(400).json({ error: 'Question too long' });
   try {
-    const answer = ai.ask(question, req.user);
+    const answer = ai.ask(question, req.user, (req.body || {}).context || null);
     audit(req, 'ai_ask', 'ai', null, question.slice(0, 100), { intent: answer.intent });
     const narrative = await ai.llmPhrase(question, answer, req.user);
     res.json({ answer, narrative, humanControl: 'All facts above are from live authorized data. AI output is advisory only — decisions require human approval.' });

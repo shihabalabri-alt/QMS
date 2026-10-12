@@ -22,6 +22,7 @@ export default function AiConsole() {
   const [input, setInput] = useState(params.get('q') || '');
   const [busy, setBusy] = useState(false);
   const [insights, setInsights] = useState(null);
+  const [last, setLast] = useState(null); // previous answer => follow-ups ("open the second one")
 
   const ask = async (question) => {
     if (!question.trim() || busy) return;
@@ -29,8 +30,9 @@ export default function AiConsole() {
     setMsgs(m => [...m, { role: 'user', text: question }]);
     setBusy(true);
     try {
-      const d = await api.post('/ai/ask', { question });
+      const d = await api.post('/ai/ask', { question, context: last ? { intent: last.intent, facts: (last.facts || []).slice(0, 8), citations: (last.citations || []).slice(0, 10) } : null });
       setMsgs(m => [...m, { role: 'ai', answer: d.answer }]);
+      setLast(d.answer);
       // The AI does things: auto-run its primary action (open page / record / theme).
       try {
         const acts = (d.answer && d.answer.actions) || [];

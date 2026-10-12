@@ -132,7 +132,36 @@ function interpretView(q, user, page) {
   const a = base(user);
   a.facts.push(`Showing ${name.toLowerCase()} — ${bits.join(' · ')}. Taking you there now.`);
   a.actions.push(navAction(`Open ${bits.join(', ')} ${name.toLowerCase()}`, link, true, true));
+  // Remember the top rows so "open the second one" works next.
+  try {
+    const rows = fetchViewRows(key, user, { mine, status, overdue: overdue && isActions });
+    for (const r of rows) {
+      const rlink = isActions ? `/actions?focus=${r.id}` : `${page.route}/${r.id}`;
+      a.citations.push({ type: isActions ? 'Action' : MODULES[key].title, code: r.code, title: titleOf(key, r), link: rlink });
+    }
+  } catch {}
   return a;
+}
+
+// Top rows honoring the same filters the view navigates with (for memory + chips).
+function fetchViewRows(key, user, f) {
+  if (!key || !MODULES[key]) {
+    // actions hub
+    const w = ["status IN ('open','in_progress')"];
+    const args = [];
+    if (f.mine) { w.push('owner_id = ?'); args.push(user.id); }
+    if (f.overdue) w.push("due_date IS NOT NULL AND due_date < date('now')");
+    if (f.status) { w.push('status = ?'); args.push(f.status); }
+    return db.prepare(`SELECT * FROM actions WHERE ${w.join(' AND ')} ORDER BY due_date LIMIT 5`).all(...args);
+  }
+  const m = MODULES[key];
+  const w = [];
+  const args = [];
+  const hasOwner = (m.fields || []).some(x => x.name === 'owner_id');
+  if (f.mine && hasOwner) { w.push('owner_id = ?'); args.push(user.id); }
+  if (f.status) { w.push('status = ?'); args.push(f.status); }
+  const sql = `SELECT * FROM ${m.table}${w.length ? ' WHERE ' + w.join(' AND ') : ''} ORDER BY id DESC LIMIT 5`;
+  return db.prepare(sql).all(...args);
 }
 
 function interpret(question, user) {

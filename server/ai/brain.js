@@ -12,6 +12,7 @@ const guide = require('./guide');
 const doer = require('./do');
 const maker = require('./make');
 const flow = require('./flow');
+const memory = require('./memory');
 
 const q = (sql, ...args) => db.prepare(sql).all(...args);
 const q1 = (sql, ...args) => db.prepare(sql).get(...args);
@@ -414,7 +415,7 @@ function fmtList(items, fn, max) {
 }
 
 function baseAnswer(intent, user) {
-  return { intent, role: user.role, scope: 'authorized live database', generatedAt: new Date().toISOString(), facts: [], findings: [], recommendations: [], citations: [], evidence: [] };
+  return { intent, role: user.role, scope: 'authorized live database', generatedAt: new Date().toISOString(), facts: [], findings: [], recommendations: [], citations: [], evidence: [], actions: [] };
 }
 function cite(ans, type, code, title) {
   if (code && !ans.citations.some(c => c.code === code)) ans.citations.push({ type, code, title, link: linkFor(type, code) });
@@ -677,7 +678,34 @@ const INTENTS = [
   { id: 'attention', match: /attention|priorit|important|focus|what should|top items|status|overview|summary of everything/i, run: answerAttention }
 ];
 
-function ask(question, user) {
+function ask(question, user, ctx) {
+  // Memory first: "open the second one" resolves against the previous answer.
+  if (ctx) {
+    try {
+      const mem = memory.resolve(question, ctx);
+      if (mem) {
+        const cites = (ctx.citations || []).filter(c => c && c.code);
+        const hit = memory.pick(cites, mem.index);
+        if (!hit && cites.length) {
+          const a = baseAnswer('clarify', user);
+          a.facts.push(`I see ${cites.length} items — which one? Say "the first one", "the second one", or "the last one".`);
+          cites.slice(0, 6).forEach((c, i) => a.actions.push({ kind: 'navigate', label: `${c.code}`, link: c.link, primary: false, auto: false }));
+          return { ...a, question };
+        }
+        if (hit && mem.type === 'open' && hit.link) {
+          const a = baseAnswer('do_action', user);
+          a.scope = 'memory (previous answer)';
+          a.facts.push(`Opening ${hit.code}${hit.title ? ` "${hit.title}"` : ''} — taking you there now.`);
+          a.actions.push({ kind: 'navigate', label: `Open ${hit.code}`, link: hit.link, primary: true, auto: true });
+          a.citations.push(hit);
+          return { ...a, question };
+        }
+        if (hit && mem.type === 'more' && hit.code) {
+          return ask(`summarize ${hit.code}`, user, null);
+        }
+      }
+    } catch {}
+  }
   // Do-actions first: "open / take me to / find ..." executes navigation + record opening.
   try {
     const acted = doer.interpret(question, user);

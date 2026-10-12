@@ -42,7 +42,7 @@ const PAGES = [
   ['/', ['dashboard', 'home page', 'overview', 'home']],
 ];
 
-const VERB_RE = /\b(open|go to|take me to|take me|bring me|bring up|show me|find|search for|search|look up|display|navigate to|go)\b/i;
+const VERB_RE = /\b(open|go to|take me to|take me|bring me|bring up|show me|show|list|find|search for|search|look up|display|navigate to|go)\b/i;
 const STOP = new Set(('open,go,to,take,me,bring,up,show,find,search,for,display,navigate,look,please,the,a,an,on,about,called,named,titled,with,of,my,us,page,section,for me').split(','));
 
 function low(s) { return String(s || '').toLowerCase(); }
@@ -91,6 +91,50 @@ function navAction(label, link, primary, auto) {
   return { kind: 'navigate', label, link, primary: !!primary, auto: !!auto };
 }
 
+function navAction(label, link, primary, auto) {
+  return { kind: 'navigate', label, link, primary: !!primary, auto: !!auto };
+}
+
+// Personal filtered views: "my overdue actions", "my open risks", "closed audits".
+// Only fires when the list page can actually honor the filter via URL params.
+function interpretView(q, user, page) {
+  const key = ROUTE_TO_KEY[page.route];
+  const isActions = page.route === '/actions';
+  if (!key && !isActions) return null; // static pages have no filters
+  if (key && !MODULES[key]) return null;
+  if (key && !canRead(user, key)) return null;
+
+  const t = low(q);
+  const mine = /\bmy\b|\bmine\b|\bassigned to me\b|\bowned by me\b|\bmy own\b/.test(t);
+  const overdue = /\boverdue\b|\blate\b|\bpast due\b/.test(t);
+  // status words, normalized
+  let status = null;
+  const norm = t.replace(/in review/g, 'in_review').replace(/in progress/g, 'in_progress');
+  const statuses = isActions
+    ? ['open', 'in_progress', 'completed', 'verified', 'cancelled']
+    : (MODULES[key] && MODULES[key].statuses) || [];
+  for (const s of statuses) {
+    if (new RegExp('\\b' + s.replace(/_/g, ' ') + '\\b').test(t) || new RegExp('\\b' + s + '\\b').test(norm)) { status = s; break; }
+  }
+  if (!mine && !status && !(overdue && isActions)) return null;
+
+  // A leftover title ("my risks for packaging") means record-find, not a view.
+  const leftover = stripQuery(q, [page.key, 'my', 'mine', 'me', 'overdue', 'late', 'past', 'due', 'open', 'closed', 'all', 'show', 'list', 'filter', 'filtered']);
+  if (leftover.length >= 3) return null;
+
+  const params = new URLSearchParams();
+  const bits = [];
+  if (mine) { params.set(isActions ? 'owner' : 'mine', isActions ? 'me' : '1'); bits.push('yours'); }
+  if (overdue && isActions) { params.set('overdue', '1'); bits.push('overdue'); }
+  if (status) { params.set('status', status); bits.push(status.replace(/_/g, ' ')); }
+  const link = page.route + (params.toString() ? '?' + params.toString() : '');
+  const name = isActions ? 'Actions' : MODULES[key].title;
+  const a = base(user);
+  a.facts.push(`Showing ${name.toLowerCase()} — ${bits.join(' · ')}. Taking you there now.`);
+  a.actions.push(navAction(`Open ${bits.join(', ')} ${name.toLowerCase()}`, link, true, true));
+  return a;
+}
+
 function interpret(question, user) {
   const q = String(question || '').trim();
   if (q.length < 2 || q.length > 500) return null;
@@ -106,6 +150,15 @@ function interpret(question, user) {
     return a;
   }
 
+  // Verbless filtered views ("closed audits", "my overdue actions"): only when the
+  // question LEADS with a filter — "which/what" starters stay data questions.
+  {
+    const pe = matchPage(q);
+    if (pe) {
+      const v = interpretView(q, user, pe);
+      if (v && /^(my|mine|overdue|late|open|closed|pending|critical|high|all|my own)\b/i.test(q.trim())) return v;
+    }
+  }
   if (!hasVerb) return null;
   // How-to questions belong to the site guide ("how do I open..." teaches, doesn't jump).
   if (/\bhow (do|can|to|should)|where do|what is|explain|teach|show me how\b/i.test(q) && !/\b(open it|take me|go to|navigate)\b/i.test(q)) return null;
@@ -133,9 +186,11 @@ function interpret(question, user) {
     }
   }
 
-  // --- module page matched ("open documents...", "take me to risk register") ---
+  // --- personal filtered views ("my overdue actions", "my open risks", "closed audits") ---
   const page = matchPage(q);
   if (page) {
+    const viewed = interpretView(q, user, page);
+    if (viewed) return viewed;
     const key = ROUTE_TO_KEY[page.route] || STATIC_ROUTE[page.route];
     if (key && (ROUTE_TO_KEY[page.route]) && !canRead(user, key)) {
       const a = base(user);

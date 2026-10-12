@@ -94,6 +94,10 @@ function resolveOwner(q) {
   } catch { return null; }
 }
 
+function singular(title) {
+  return title.replace(/ Register$/i, '').replace(/ies$/i, 'y').replace(/(s|es)$/i, '').toLowerCase() || title.toLowerCase();
+}
+
 function base(user) {
   return { intent: 'create_draft', role: user.role, scope: 'create-draft (schema + permissions verified)', generatedAt: new Date().toISOString(), facts: [], findings: [], recommendations: [], citations: [], evidence: [], actions: [] };
 }
@@ -119,7 +123,7 @@ function interpret(question, user) {
   if (title.length < 3) {
     const a = base(user);
     a.intent = 'create_ask';
-    a.facts.push(`I'll create a ${m.title.replace(/s$/, '').toLowerCase()} for you — but what should it be called?`);
+    a.facts.push(`I'll create a ${singular(m.title)} for you — but what should it be called?`);
     a.recommendations.push(`Reply like: "create ${target.key} for ${target.mod === 'actions' ? 'calling the supplier' : 'packaging damage trend'}"`);
     return a;
   }
@@ -158,7 +162,7 @@ function interpret(question, user) {
   }
 
   const a = base(user);
-  a.facts.push(`Draft ready — ${m.title.replace(/s$/, '').toLowerCase()} "${body[titleField]}"`);
+  a.facts.push(`Draft ready — ${singular(m.title)} "${body[titleField]}"`);
   for (const e of extras) a.facts.push('• ' + e);
   a.facts.push('Tap Confirm & create — nothing is saved until you do.');
   a.actions.push({ kind: 'api', method: 'POST', url: '/' + ROUTE[target.mod], body, label: 'Confirm & create', primary: true, auto: false, navigateTo: '/' + ROUTE[target.mod] });

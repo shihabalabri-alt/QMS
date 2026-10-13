@@ -11,6 +11,7 @@ const QUICK = [
   'Take me to the risk register',
   'Create an action to call the supplier',
   'Show me what needs attention',
+  'Escalate all overdue actions',
   'Which documents need review?',
   'Turn on dark mode'
 ];

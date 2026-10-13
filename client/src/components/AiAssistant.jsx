@@ -77,11 +77,24 @@ export function ActionButtons({ actions }) {
     if (busy) return;
     setBusy(true);
     try {
-      const d = await api.post(a.url, a.body);
-      const row = d.row || d;
-      showToast(`Created ${row.code || 'record'}`);
-      if (row && row.id && a.navigateTo) nav(`${a.navigateTo}/${row.id}`);
-      else if (a.navigateTo) nav(a.navigateTo);
+      if (a.kind === 'api-bulk' && Array.isArray(a.ops)) {
+        let ok = 0, fail = 0;
+        for (const op of a.ops.slice(0, 10)) {
+          try {
+            const fn = (op.method === 'PUT' ? api.put : api.post);
+            await fn(op.url, op.body || {});
+            ok++;
+          } catch { fail++; }
+        }
+        showToast(fail ? `Bulk done: ${ok} changed, ${fail} failed` : `Bulk done: ${ok} changed`, fail ? 'error' : undefined);
+        if (a.navigateTo) nav(a.navigateTo);
+      } else {
+        const d = await api.post(a.url, a.body);
+        const row = d.row || d;
+        showToast(`Created ${row.code || 'record'}`);
+        if (row && row.id && a.navigateTo) nav(`${a.navigateTo}/${row.id}`);
+        else if (a.navigateTo) nav(a.navigateTo);
+      }
     } catch (e) { showToast(e.message, 'error'); }
     setBusy(false);
   };

@@ -12,6 +12,7 @@ const guide = require('./guide');
 const doer = require('./do');
 const maker = require('./make');
 const flow = require('./flow');
+const bulk = require('./bulk');
 const memory = require('./memory');
 
 const q = (sql, ...args) => db.prepare(sql).all(...args);
@@ -720,6 +721,11 @@ function ask(question, user, ctx) {
   try {
     const moved = flow.interpret(question, user);
     if (moved) return { ...moved, question };
+  } catch {}
+  // Bulk moves fourth: "escalate all overdue ..." drafts N changes, one Confirm.
+  try {
+    const batched = bulk.interpret(question, user);
+    if (batched) return { ...batched, question };
   } catch {}
   // Site-guide questions: built-in knowledge, no database trip.
   const guided = guide.answerSiteGuide(question, user);

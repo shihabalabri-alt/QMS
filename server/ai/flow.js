@@ -43,6 +43,7 @@ function wantedState(q) {
 function interpretApproval(question, user) {
   const q = String(question || '').trim();
   if (!VERB_RE.test(q) || q.length < 6) return null;
+  if (/\ball\b/.test(low(q))) return null; // "all X" belongs to bulk moves
   // How-to belongs to the guide ("how do I approve...?" teaches).
   if (/\bhow (do|can|to|should)|where|what is|explain|teach|show me how\b/i.test(q)) return null;
 

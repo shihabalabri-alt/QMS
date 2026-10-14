@@ -89,9 +89,9 @@ export function ActionButtons({ actions }) {
         showToast(fail ? `Bulk done: ${ok} changed, ${fail} failed` : `Bulk done: ${ok} changed`, fail ? 'error' : undefined);
         if (a.navigateTo) nav(a.navigateTo);
       } else {
-        const d = await api.post(a.url, a.body);
+        const d = a.method === 'DELETE' ? await api.del(a.url) : await api.post(a.url, a.body);
         const row = d.row || d;
-        showToast(`Created ${row.code || 'record'}`);
+        showToast(a.doneText || `Created ${row.code || 'record'}`);
         if (row && row.id && a.navigateTo) nav(`${a.navigateTo}/${row.id}`);
         else if (a.navigateTo) nav(a.navigateTo);
       }

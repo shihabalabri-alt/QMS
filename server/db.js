@@ -63,6 +63,17 @@ CREATE TABLE IF NOT EXISTS ai_recommendations (
   proposed_by TEXT DEFAULT 'ai', proposed_at TEXT DEFAULT (datetime('now')),
   decided_by INTEGER, decided_at TEXT, decision_note TEXT
 );
+CREATE TABLE IF NOT EXISTS ai_watches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  module TEXT NOT NULL, table_name TEXT NOT NULL,
+  record_id INTEGER NOT NULL, code TEXT NOT NULL, title TEXT,
+  link TEXT, snapshot TEXT,
+  active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  last_checked TEXT, last_fired TEXT,
+  UNIQUE(user_id, module, record_id)
+);
 CREATE TABLE IF NOT EXISTS policies (
   id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE,
   title TEXT NOT NULL, category TEXT DEFAULT 'Quality', version TEXT DEFAULT '1.0',

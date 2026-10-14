@@ -6,6 +6,7 @@ import { AnswerBody, applyClientAction } from '../components/AiAssistant';
 
 const QUICK = [
   'Brief me',
+  'Watch RSK-0001',
   'What needs my signature?',
   'Open documents on Quality Manual',
   'Take me to the risk register',

@@ -145,6 +145,8 @@ function runJobs(trigger) {
   const started = Date.now();
   const a = sweepActions();
   const e = sweepExpiries();
+  let w = { watchesChecked: 0, watchesFired: 0 };
+  try { w = require('./ai/watch').sweepWatches(); } catch (err) { w = { watchError: err.message }; }
   // Daily encrypted database backup
   let b = { skipped: true };
   try {
@@ -159,8 +161,8 @@ function runJobs(trigger) {
 
   db.prepare(`INSERT INTO settings (key, value) VALUES ('last_job_run', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
     .run(`${nowIso()} (${trigger})`);
-  audit({ user: null, ip: 'system' }, 'job_run', 'system', null, 'Automation sweep', { ...a, ...e, ...b, ms: Date.now() - started, trigger });
-  return { ...a, ...e, ...b, ms: Date.now() - started };
+  audit({ user: null, ip: 'system' }, 'job_run', 'system', null, 'Automation sweep', { ...a, ...e, ...w, ...b, ms: Date.now() - started, trigger });
+  return { ...a, ...e, ...w, ...b, ms: Date.now() - started };
 }
 
 function start() {

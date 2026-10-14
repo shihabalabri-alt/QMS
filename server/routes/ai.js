@@ -183,4 +183,36 @@ r.post('/recommendations/:id/decide', (req, res) => {
   res.json({ ok: !error, status: finalStatus, result, error });
 });
 
+/* ---------------- Watchdog: guard records, bell on change ---------------- */
+const watcher = require('../ai/watch');
+
+r.get('/watches', (req, res) => {
+  res.json({ rows: db.prepare('SELECT * FROM ai_watches WHERE user_id = ? AND active = 1 ORDER BY id').all(req.user.id) });
+});
+
+r.post('/watches', (req, res) => {
+  const { module, record_id } = req.body || {};
+  const m = MODULES[module];
+  if (!m || !Number.isInteger(record_id)) return res.status(400).json({ error: 'module and record_id required' });
+  const row = db.prepare(`SELECT * FROM ${m.table} WHERE id = ?`).get(record_id);
+  if (!row) return res.status(404).json({ error: 'Record not found' });
+  const dupe = db.prepare('SELECT * FROM ai_watches WHERE user_id = ? AND module = ? AND record_id = ? AND active = 1').get(req.user.id, module, record_id);
+  if (dupe) return res.status(400).json({ error: 'Already watching ' + (row.code || 'this record') });
+  const title = row.title || row.name || row.code;
+  const link = `/${({ policies: 'policies', goals: 'goals', risks: 'risks', suppliers: 'suppliers', employees: 'employees', competencies: 'competencies', trainings: 'trainings', records: 'records', documents: 'documents', design: 'design', equipment: 'equipment', nonconformances: 'nonconformances', audits: 'audits', compliance: 'compliance', mgmt_reviews: 'mgmt-reviews', actions: 'actions' })[module]}/${record_id}`;
+  const id = db.prepare('INSERT INTO ai_watches (user_id, module, table_name, record_id, code, title, link, snapshot) VALUES (?,?,?,?,?,?,?,?)')
+    .run(req.user.id, module, m.table, record_id, row.code, title, link, JSON.stringify(watcher.snapshotOf(module, row))).lastInsertRowid;
+  audit(req, 'watch_create', m.table, record_id, row.code, { watchId: id });
+  res.status(201).json({ row: db.prepare('SELECT * FROM ai_watches WHERE id = ?').get(id) });
+});
+
+r.delete('/watches/:id', (req, res) => {
+  const w = db.prepare('SELECT * FROM ai_watches WHERE id = ?').get(Number(req.params.id));
+  if (!w) return res.status(404).json({ error: 'Watch not found' });
+  if (w.user_id !== req.user.id) return res.status(403).json({ error: 'Not your watch' });
+  db.prepare('DELETE FROM ai_watches WHERE id = ?').run(w.id);
+  audit(req, 'watch_delete', 'ai_watches', w.id, w.code, {});
+  res.json({ ok: true });
+});
+
 module.exports = r;

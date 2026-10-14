@@ -13,6 +13,7 @@ const doer = require('./do');
 const maker = require('./make');
 const flow = require('./flow');
 const bulk = require('./bulk');
+const watcher = require('./watch');
 const memory = require('./memory');
 
 const q = (sql, ...args) => db.prepare(sql).all(...args);
@@ -704,6 +705,9 @@ function ask(question, user, ctx) {
         if (hit && mem.type === 'more' && hit.code) {
           return ask(`summarize ${hit.code}`, user, null);
         }
+        if (hit && mem.type === 'watch' && hit.code) {
+          return ask(`watch ${hit.code}`, user, null);
+        }
       }
     } catch {}
   }
@@ -726,6 +730,11 @@ function ask(question, user, ctx) {
   try {
     const batched = bulk.interpret(question, user);
     if (batched) return { ...batched, question };
+  } catch {}
+  // Watchdog fifth: "watch RSK-0001 ..." guards a record, human confirms.
+  try {
+    const watched = watcher.interpret(question, user);
+    if (watched) return { ...watched, question };
   } catch {}
   // Site-guide questions: built-in knowledge, no database trip.
   const guided = guide.answerSiteGuide(question, user);

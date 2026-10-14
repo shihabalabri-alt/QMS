@@ -13,7 +13,7 @@ const QUICK = [
   'Create an action to call the supplier',
   'Show me what needs attention',
   'Escalate all overdue actions',
-  'Which documents need review?',
+  'Are we better than last month?',
   'Turn on dark mode'
 ];
 

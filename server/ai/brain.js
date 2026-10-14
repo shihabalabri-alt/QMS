@@ -444,6 +444,111 @@ function answerAttention(c, A, user) {
   return a;
 }
 
+function resolveSupplier(c, text) {
+  const codeHit = (text.match(/\bSUP-\d{1,6}\b/i) || [])[0];
+  if (codeHit) {
+    const s = c.suppliers.find(x => x.code === codeHit.toUpperCase());
+    if (s) return { one: s };
+  }
+  const words = String(text || '').toLowerCase().replace(/[^a-z0-9 -]+/g, ' ').split(/\s+/)
+    .filter(w => w && w.length > 2 && !/compare|trend|trending|supplier|vendor|with|against|quarter|month|last|history|over|time|improving|declining|better|worse|show|tell|about|please|quarterly|performance|versus|vs|last|this/.test(w)).join(' ').trim();
+  if (words.length < 3) return { none: true };
+  const hits = c.suppliers.filter(s => s.name.toLowerCase().includes(words) || words.split(' ').some(w => w.length > 3 && s.name.toLowerCase().includes(w)));
+  if (!hits.length) return { missing: words };
+  if (hits.length === 1) return { one: hits[0] };
+  return { many: hits.slice(0, 5) };
+}
+
+function answerSupplierTrend(c, A, user, question) {
+  const a = baseAnswer('supplier_trend', user);
+  const r = resolveSupplier(c, question);
+  if (r.none) {
+    a.facts.push('Which supplier? Say "compare Nordic" or "compare SUP-0004".');
+    return a;
+  }
+  if (r.missing) {
+    a.facts.push(`I don't track a supplier called "${r.missing}".`);
+    a.recommendations.push('For overall direction ask "are we better than last month?"; for a supplier try "compare SUP-0004".');
+    return a;
+  }
+  if (r.many) {
+    a.facts.push(`Several match — which one? ${r.many.map(s => `${s.code} ${s.name}`).join(' · ')}`);
+    r.many.forEach(s => a.citations.push({ type: 'Supplier', code: s.code, title: s.name, link: `/suppliers/${s.id}` }));
+    return a;
+  }
+  const s = r.one;
+  const evs = c.supplier_evals.filter(e => e.supplier_id === s.id).sort((x, y) => x.period.localeCompare(y.period));
+  cite(a, 'Supplier', s.code, s.name);
+  if (evs.length < 2) {
+    a.facts.push(`${s.name} (${s.code}) has ${evs.length} evaluation(s) — not enough history to call a trend.`);
+    a.facts.push(`Status: ${s.status}${s.risk_level ? ` · risk: ${s.risk_level}` : ''}.`);
+    return a;
+  }
+  const vals = evs.map(e => e.total_score);
+  const t = trendOf(vals);
+  const delta = Math.round((vals[vals.length - 1] - vals[0]) * 10) / 10;
+  a.facts.push(`${s.name} (${s.code}) — ${evs.length} periods, ${evs[0].period} → ${evs[evs.length - 1].period}:`);
+  for (const e of evs.slice(-4)) a.facts.push(`• ${e.period}: ${e.total_score}/100`);
+  a.facts.push(`Verdict: ${t.direction} (${delta >= 0 ? '+' : ''}${delta} pts). Status ${s.status}${s.risk_level ? `, risk ${s.risk_level}` : ''}.`);
+  a.evidence = evs.map(e => ({ period: e.period, score: e.total_score }));
+  if (t.direction === 'deteriorating') {
+    a.findings.push('Scores are sliding — intervene before it crosses below 70% twice (conditional status per POL-0003).');
+    a.recommendations.push('Open a supplier development plan and consider an on-site audit.');
+  } else if (t.direction === 'improving') {
+    a.findings.push('Recovery in progress — confirm the improvement holds one more period.');
+  } else {
+    a.findings.push('Flat trend — stable, keep the regular evaluation rhythm.');
+  }
+  return a;
+}
+
+function answerMonthPulse(c, A, user) {
+  const a = baseAnswer('month_pulse', user);
+  const now = new Date();
+  const cur = now.toISOString().slice(0, 7);
+  const prevD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prev = prevD.toISOString().slice(0, 7);
+  const curName = now.toLocaleDateString(undefined, { month: 'long' });
+  const prevName = prevD.toLocaleDateString(undefined, { month: 'long' });
+
+  // KPIs: latest period avg vs previous period avg, direction-aware
+  const kpiLines = [];
+  let kpiBetter = 0, kpiWorse = 0;
+  for (const g of c.goals) {
+    const es = c.goal_entries.filter(e => e.goal_id === g.id);
+    if (!es.length) continue;
+    const periods = [...new Set(es.map(e => e.period))].sort();
+    if (periods.length < 2) continue;
+    const avg = p => { const v = es.filter(e => e.period === p).map(e => e.value); return v.reduce((x, y) => x + y, 0) / v.length; };
+    const last = avg(periods[periods.length - 1]), before = avg(periods[periods.length - 2]);
+    if (last === before) continue;
+    const good = g.direction === 'lower' ? last < before : last > before;
+    good ? kpiBetter++ : kpiWorse++;
+    kpiLines.push(`• ${g.code} ${g.title}: ${before} → ${last} (${good ? 'better' : 'worse'})`);
+  }
+
+  const ncCur = c.nonconformances.filter(n => (n.occurred_at || '').startsWith(cur)).length;
+  const ncPrev = c.nonconformances.filter(n => (n.occurred_at || '').startsWith(prev)).length;
+  const doneCur = c.actions.filter(x => (x.completed_at || '').startsWith(cur)).length;
+  const donePrev = c.actions.filter(x => (x.completed_at || '').startsWith(prev)).length;
+
+  const goods = (ncCur <= ncPrev ? 1 : 0) + (doneCur >= donePrev ? 1 : 0) + (kpiBetter >= kpiWorse ? 1 : 0);
+  a.facts.push(`${prevName} → ${curName}: ${goods >= 2 ? 'yes, better' : goods === 1 ? 'mixed' : 'no, worse'}.`);
+  a.facts.push(`Quality events opened: ${ncPrev} → ${ncCur} (${ncCur <= ncPrev ? 'fewer, good' : 'more — watch it'}).`);
+  a.facts.push(`Actions completed: ${donePrev} → ${doneCur} (${doneCur >= donePrev ? 'pace held' : 'pace dropped'}).`);
+  if (kpiLines.length) {
+    a.facts.push(`KPIs with two periods to compare (${kpiBetter} better, ${kpiWorse} worse):`);
+    kpiLines.slice(0, 6).forEach(l => a.facts.push(l));
+    for (const g of c.goals.slice(0, 3)) cite(a, 'KPI', g.code, g.title);
+  } else {
+    a.facts.push('No KPI has two comparable periods yet — record this month to start the comparison.');
+  }
+  a.evidence = [{ prevMonth: prev, curMonth: cur, ncPrev, ncCur, donePrev, doneCur, kpiBetter, kpiWorse }];
+  if (ncCur > ncPrev) a.recommendations.push('More events than last month — check the repeat-pattern suppliers and open NCs.');
+  if (doneCur < donePrev) a.recommendations.push('Completion pace dropped — re-baseline overdue owners at the next review.');
+  return a;
+}
+
 function answerBriefing(c, A, user) {
   const a = baseAnswer('briefing', user);
   const T = new Date().toISOString().slice(0, 10);
@@ -665,6 +770,7 @@ function answerMissing(c, A, user) {
 }
 
 const INTENTS = [
+  { id: 'month_pulse', match: /better than last|versus|month over month|this month|last month|are we (better|worse|improving)|month vs|vs\.? month/i, run: answerMonthPulse },
   { id: 'briefing', match: /brief(ing)?|morning briefing|daily (brief|summary|report)|what( is|'s)? (happening|new|going on)|today'?s priorit|rundown|catch me up|how is the company|company status/i, run: answerBriefing },
   { id: 'mgmt_review', match: /management review|mgmt review|review draft/i, run: answerMgmtDraft },
   { id: 'worsening', match: /worse|worsen|deteriorat|getting bad|increasing risk/i, run: answerWorseningRisks },
@@ -711,6 +817,26 @@ function ask(question, user, ctx) {
       }
     } catch {}
   }
+  // Collect once for everything below.
+  const c = collect(user);
+  const A = analyze(c, user);
+
+  // Supplier trend & comparison pre-guide ("compare Nordic", "SUP-0004 trend last quarter")
+  // (skipped when another module is clearly meant: "compare documents")
+  if (/compar|trend|improv|declin|better\b|worse\b|history|over time|quarter/i.test(question)
+    && !/\b(documents?|risks?|audits?|actions?|polic(y|ies)|goals?|kpis?|objectives?|equipment|nc\b|incidents?|compliance|trainings?|competenc\w*|employees?|people)\b/i.test(question)
+    && (/supplier|vendor|\bSUP-\d/i.test(question) || /\b[A-Z][a-z]{2,}\b/.test(question))) {
+    return { ...answerSupplierTrend(c, A, user, question), question };
+  }
+  // KPI trend pre-guide ("how are the KPIs trending?")
+  if (/trend|forecast|direction/i.test(question) && /kpi|goal|objective/i.test(question)) {
+    return { ...answerTrend(c, A, user, null), question };
+  }
+  // Month-over-month pulse pre-guide ("are we better than last month?")
+  if (/better than last month|worse than last month|month over month|vs\.? last month|versus last month|are we (better|worse|improving)/i.test(question)) {
+    return { ...answerMonthPulse(c, A, user), question };
+  }
+
   // Do-actions first: "open / take me to / find ..." executes navigation + record opening.
   try {
     const acted = doer.interpret(question, user);
@@ -739,8 +865,6 @@ function ask(question, user, ctx) {
   // Site-guide questions: built-in knowledge, no database trip.
   const guided = guide.answerSiteGuide(question, user);
   if (guided) return { ...guided, question };
-  const c = collect(user);
-  const A = analyze(c, user);
   const mentions = entityMentions(question);
 
   // entity-specific intents take priority

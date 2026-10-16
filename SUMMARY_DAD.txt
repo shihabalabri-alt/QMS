@@ -58,6 +58,7 @@ NEW: Briefing — "brief me" reads the whole company in 30 seconds.
 NEW: Memory — follow-ups: "open the second one", "tell me more about it".
 NEW: Bulk-AI — "escalate all overdue actions" moves them all in one Confirm.
 NEW: Watchdog — "watch RSK-0001" guards it; the scheduler bells you on change.
+NEW: Compare-AI — "compare Nordic" trends suppliers; "are we better than last month?" pulses the company.
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

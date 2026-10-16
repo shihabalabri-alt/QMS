@@ -335,3 +335,8 @@ tr.row-link { cursor: pointer; }
   .card, .stat-card, .modal { box-shadow: none; break-inside: avoid; }
   table.data { font-size: 12px; }
 }
+
+/* ---------- AI deep-thinking indicator ---------- */
+.ai-thinking { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--muted); font-style: italic; }
+.ai-thinking-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); animation: ai-pulse 1s ease-in-out infinite; flex-shrink: 0; }
+@keyframes ai-pulse { 0%, 100% { transform: scale(.7); opacity: .5; } 50% { transform: scale(1.15); opacity: 1; } }

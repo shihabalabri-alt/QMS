@@ -786,7 +786,56 @@ const INTENTS = [
   { id: 'attention', match: /attention|priorit|important|focus|what should|top items|status|overview|summary of everything/i, run: answerAttention }
 ];
 
-function ask(question, user, ctx) {
+/* Multi-job paragraphs: "open risks, brief me, and watch RSK-0001".
+ * Long messages split into jobs; each runs the full pipeline (depth-guarded).
+ * Only combined when 2+ jobs give real answers. */
+function splitTasks(q) {
+  const verbLook = '(?:open|create|brief|watch|approve|close|submit|show|take|go|find|turn|compare|complete|escalate|tell|give|list|add|log|monitor)';
+  const parts = String(q || '')
+    .replace(/(\d+)[.)]\s*/g, '\n$1. ')
+    .split(new RegExp('\\n+|;\\s+|\\s+and then\\s+|\\s+then\\s+(?=' + verbLook + '\\b)|\\s+and\\s+(?=' + verbLook + '\\b)', 'i'))
+    .flatMap(s => s.split(/(?<=[.?!])\s+(?=[A-Z0-9"'])/))
+    .map(s => (s || '').trim().replace(/^(and|then|also|plus|after that|finally)\b[,\s]*/i, '').trim())
+    .filter(s => s.length >= 12 || /^(open|create|brief|watch|approve|close|submit|show|take|go|find|turn|compare|complete|escalate|tell|give|list|add|log|monitor)\b/i.test(s));
+  return parts;
+}
+
+const SKIP_INTENTS = new Set(['general_guidance', 'off_topic']);
+
+function tryMulti(question, user) {
+  const parts = splitTasks(question);
+  if (parts.length < 2) return null;
+  const runs = [];
+  for (const seg of parts.slice(0, 4)) {
+    let ans = null;
+    try { ans = ask(seg, user, null, 1); } catch { ans = null; }
+    if (ans && !SKIP_INTENTS.has(ans.intent)) runs.push({ seg, ans });
+  }
+  if (runs.length < 2) return null;
+  const a = baseAnswer('multi_task', user);
+  a.scope = 'multi-task (one message, several jobs)';
+  a.facts.push(`Big message — I split it into ${runs.length} jobs and did them all:`);
+  runs.forEach((r, i) => {
+    a.facts.push(`Job ${i + 1} — "${r.seg.slice(0, 80)}":`);
+    (r.ans.facts || []).slice(0, 8).forEach(f => a.facts.push('• ' + f));
+    (r.ans.actions || []).forEach(x => a.actions.push(x));
+    (r.ans.citations || []).forEach(c => {
+      if (c && c.code && !a.citations.some(e => e.code === c.code)) a.citations.push(c);
+    });
+  });
+  // One automatic jump max — the rest stay tappable buttons.
+  let jumped = false;
+  a.actions.forEach(x => {
+    if (x.kind === 'navigate' && x.auto) {
+      if (!jumped) jumped = true;
+      else x.auto = false;
+    }
+  });
+  a.recommendations.push('All jobs done above — tap any button to jump, Confirm to approve drafts.');
+  return { ...a, question };
+}
+
+function ask(question, user, ctx, depth) {
   // Memory first: "open the second one" resolves against the previous answer.
   if (ctx) {
     try {
@@ -815,6 +864,13 @@ function ask(question, user, ctx) {
           return ask(`watch ${hit.code}`, user, null);
         }
       }
+    } catch {}
+  }
+  // Big paragraphs: split into jobs (depth-guarded, top level only).
+  if (!depth) {
+    try {
+      const multi = tryMulti(question, user);
+      if (multi) return multi;
     } catch {}
   }
   // Collect once for everything below.

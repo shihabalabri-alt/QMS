@@ -25,12 +25,19 @@ export default function AiConsole() {
   const [busy, setBusy] = useState(false);
   const [insights, setInsights] = useState(null);
   const [last, setLast] = useState(null); // previous answer => follow-ups ("open the second one")
+  const [thinking, setThinking] = useState(''); // visible deep-think for big messages
+
+  const THINK_STEPS = ['Reading your request…', 'Breaking it into jobs…', 'Checking the live data…', 'Writing the answer…'];
 
   const ask = async (question) => {
     if (!question.trim() || busy) return;
     setInput('');
     setMsgs(m => [...m, { role: 'user', text: question }]);
     setBusy(true);
+    const timers = [];
+    if (question.trim().length > 140) {
+      THINK_STEPS.forEach((step, i) => timers.push(setTimeout(() => setThinking(step), 500 * (i + 1))));
+    }
     try {
       const d = await api.post('/ai/ask', { question, context: last ? { intent: last.intent, facts: (last.facts || []).slice(0, 8), citations: (last.citations || []).slice(0, 10) } : null });
       setMsgs(m => [...m, { role: 'ai', answer: d.answer }]);
@@ -43,6 +50,8 @@ export default function AiConsole() {
         if (go) { showToast('Opening: ' + (go.label || go.link)); setTimeout(() => nav(go.link), 900); }
       } catch {}
     } catch (e) { setMsgs(m => [...m, { role: 'ai', error: e.message }]); }
+    timers.forEach(clearTimeout);
+    setThinking('');
     setBusy(false);
   };
 
@@ -82,7 +91,9 @@ export default function AiConsole() {
           ? <div key={i} className="alert info mb-3" style={{ background: 'var(--primary-soft)', borderColor: '#c7d2fe', color: 'var(--primary-dark)' }}><b>You:</b> {m.text}</div>
           : <div key={i} className="card card-pad mb-3">{m.error ? <span style={{ color: 'var(--danger)' }}>{m.error}</span> : <AnswerBody answer={m.answer} />}</div>
       ))}
-      {busy && <Spinner />}
+      {busy && (thinking
+        ? <div className="card card-pad mb-3"><div className="ai-thinking"><span className="ai-thinking-dot" />{thinking}</div></div>
+        : <Spinner />)}
 
       <div className="flex gap-2 mt-3" style={{ position: 'sticky', bottom: 10 }}>
         <input className="input" style={{ flex: 1, padding: 13 }} placeholder="e.g. Show everything connected to RSK-0001 · Summarize SUP-0004"

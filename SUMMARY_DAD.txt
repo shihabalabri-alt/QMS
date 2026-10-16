@@ -60,6 +60,7 @@ NEW: Bulk-AI — "escalate all overdue actions" moves them all in one Confirm.
 NEW: Watchdog — "watch RSK-0001" guards it; the scheduler bells you on change.
 NEW: Compare-AI — "compare Nordic" trends suppliers; "are we better than last month?" pulses the company.
 NEW: Multi-AI — paste a whole paragraph; it splits it into jobs and does them all. Long messages show live thinking steps.
+NEW: Arabic-AI — اسأل بالعربية: افتح، أنشئ، وافق، موجز، قارن. الأجوبة والتوجيهات بالعربية (RTL).
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

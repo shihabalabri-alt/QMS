@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Icon, Spinner, Badge, Modal, showToast } from '../lib/ui';
-import { AnswerBody, applyClientAction } from '../components/AiAssistant';
+import { AnswerBody, applyClientAction, speechSupported, useVoiceInput } from '../components/AiAssistant';
 
 const QUICK = [
   'Brief me',
@@ -26,6 +26,7 @@ export default function AiConsole() {
   const [insights, setInsights] = useState(null);
   const [last, setLast] = useState(null); // previous answer => follow-ups ("open the second one")
   const [thinking, setThinking] = useState(''); // visible deep-think for big messages
+  const [listening, toggleListen] = useVoiceInput(setInput);
 
   const THINK_STEPS = ['Reading your request…', 'Breaking it into jobs…', 'Checking the live data…', 'Writing the answer…'];
 
@@ -96,8 +97,9 @@ export default function AiConsole() {
         : <Spinner />)}
 
       <div className="flex gap-2 mt-3" style={{ position: 'sticky', bottom: 10 }}>
-        <input className="input" style={{ flex: 1, padding: 13 }} placeholder="e.g. Show everything connected to RSK-0001 · Summarize SUP-0004"
+        <input className="input" style={{ flex: 1, padding: 13 }} placeholder="e.g. Show everything connected to RSK-0001 · Summarize SUP-0004 — or tap 🎤 and talk"
           value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && ask(input)} />
+        {speechSupported() && <button className={`btn ${listening ? 'danger' : ''}`} style={{ padding: '0 14px' }} title={listening ? 'Stop listening' : 'Talk instead of typing'} onClick={() => toggleListen(last && last.lang === 'ar' ? 'ar-SA' : undefined)}><Icon name="mic" /></button>}
         <button className="btn primary" style={{ padding: '0 22px' }} disabled={busy} onClick={() => ask(input)}><Icon name="send" /></button>
       </div>
     </div>

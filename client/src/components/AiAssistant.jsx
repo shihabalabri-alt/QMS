@@ -38,9 +38,10 @@ export function AnswerBody({ answer }) {
   const rtl = answer.lang === 'ar';
   return (
     <div dir={rtl ? 'rtl' : 'ltr'}>
-      <div className="muted small mb-2" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="muted small mb-2" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <span className="code-chip">intent: {answer.intent}</span>
         <span className="code-chip">scope: {answer.scope}</span>
+        <button className="icon-btn" style={{ width: 26, height: 26 }} title={rtl ? 'استمع للإجابة' : 'Listen to this answer'} onClick={() => speakText(answer)}><Icon name="volume" size={15} /></button>
       </div>
       {answer.actions?.length > 0 && <><SectionLabel kind="actions" lang={answer.lang} /><ActionButtons actions={answer.actions} /></>}
       {answer.facts.length > 0 && <>
@@ -117,6 +118,48 @@ export function ActionButtons({ actions }) {
     </div>
   );
 }
+/* ---------- Voice: talk instead of typing (free, built into the browser) ---------- */
+export function speechSupported() {
+  return typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+export function useVoiceInput(setInput) {
+  const [listening, setListening] = useState(false);
+  const recRef = useRef(null);
+  useEffect(() => () => { try { recRef.current && recRef.current.abort(); } catch {} }, []);
+  const toggle = (lang) => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { showToast('Voice input is not supported in this browser — please type instead.', 'error'); return; }
+    if (listening) { try { recRef.current && recRef.current.stop(); } catch {} return; }
+    try {
+      const rec = new SR();
+      rec.lang = lang || navigator.language || 'en-US';
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      rec.onresult = (e) => { let t = ''; for (const r of e.results) t += r[0].transcript; setInput(t); };
+      rec.onend = () => setListening(false);
+      rec.onerror = () => setListening(false);
+      recRef.current = rec;
+      rec.start();
+      setListening(true);
+    } catch { setListening(false); }
+  };
+  return [listening, toggle];
+}
+
+export function speakText(answer) {
+  try {
+    if (!('speechSynthesis' in window)) { showToast('Voice output is not supported in this browser.', 'error'); return; }
+    const lang = answer && answer.lang === 'ar' ? 'ar-SA' : 'en-US';
+    const text = ((answer && answer.facts) || []).join('. ').replace(/[•⚠]/g, '').slice(0, 600);
+    if (!text.trim()) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    window.speechSynthesis.speak(u);
+  } catch {}
+}
+
 export function renderText(text, nav) {
   const parts = String(text).split(/(\b(?:NC|CAPA|INC|RSK|SUP|DOC|POL|ACT|EQ|AUD|KPI|OBJ|ASM|TRN|REC|DR|CR|MR|EMP|CMP)-\d{1,6}\b)/g);
   return parts.map((p, i) => {
@@ -151,6 +194,7 @@ export default function AiAssistant() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState(null); // previous answer => follow-ups ("open the second one")
+  const [listening, toggleListen] = useVoiceInput(setInput);
   const [params] = useSearchParams();
   const nav = useNavigate();
   const endRef = useRef(null);
@@ -210,7 +254,8 @@ export default function AiAssistant() {
             <div ref={endRef} />
           </div>
           <div className="ai-input-bar">
-            <input placeholder="e.g. Show everything connected to NC-0005…" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && ask(input)} />
+            <input placeholder="e.g. Show everything connected to NC-0005… — or tap 🎤" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && ask(input)} />
+            {speechSupported() && <button className={`btn ${listening ? 'danger' : ''}`} title={listening ? 'Stop listening' : 'Talk instead of typing'} onClick={() => toggleListen(last && last.lang === 'ar' ? 'ar-SA' : undefined)}><Icon name="mic" size={15} /></button>}
             <button className="btn primary" disabled={busy || !input.trim()} onClick={() => ask(input)}><Icon name="send" size={15} /></button>
           </div>
         </div>

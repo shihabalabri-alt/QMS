@@ -105,16 +105,18 @@ function interpretView(q, user, page) {
   if (key && !canRead(user, key)) return null;
 
   const t = low(q);
-  const mine = /\bmy\b|\bmine\b|\bassigned to me\b|\bowned by me\b|\bmy own\b/.test(t);
-  const overdue = /\boverdue\b|\blate\b|\bpast due\b/.test(t);
+  // Strip a leading command verb so "open ..." isn't read as status=open.
+  const t2 = t.replace(/^(open|show|go|take|bring|display|list|find|search)\b\s*(the\s+)?/, '');
+  const mine = /\bmy\b|\bmine\b|\bassigned to me\b|\bowned by me\b|\bmy own\b/.test(t2);
+  const overdue = /\boverdue\b|\blate\b|\bpast due\b/.test(t2);
   // status words, normalized
   let status = null;
-  const norm = t.replace(/in review/g, 'in_review').replace(/in progress/g, 'in_progress');
+  const norm = t2.replace(/in review/g, 'in_review').replace(/in progress/g, 'in_progress');
   const statuses = isActions
     ? ['open', 'in_progress', 'completed', 'verified', 'cancelled']
     : (MODULES[key] && MODULES[key].statuses) || [];
   for (const s of statuses) {
-    if (new RegExp('\\b' + s.replace(/_/g, ' ') + '\\b').test(t) || new RegExp('\\b' + s + '\\b').test(norm)) { status = s; break; }
+    if (new RegExp('\\b' + s.replace(/_/g, ' ') + '\\b').test(t2) || new RegExp('\\b' + s + '\\b').test(norm)) { status = s; break; }
   }
   if (!mine && !status && !(overdue && isActions)) return null;
 

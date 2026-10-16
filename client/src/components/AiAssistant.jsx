@@ -14,7 +14,7 @@ const QUICK = [
   'How are the KPIs trending?'
 ];
 
-function SectionLabel({ kind }) {
+function SectionLabel({ kind, lang }) {
   const map = {
     facts: ['Facts (from live data)', 'sl-facts', 'check'],
     findings: ['Possible findings', 'sl-findings', 'alert'],
@@ -22,38 +22,46 @@ function SectionLabel({ kind }) {
     actions: ['AI action — tap to go', 'sl-recs', 'link'],
     evidence: ['Evidence & citations', 'sl-evidence', 'link']
   };
+  const arMap = {
+    facts: 'الحقائق (من البيانات الحية)',
+    findings: 'ملاحظات محتملة',
+    recommendations: 'توصيات',
+    actions: 'إجراء — اضغط للانتقال',
+    evidence: 'الأدلة والمراجع'
+  };
   const [label, cls, icon] = map[kind] || [kind, 'sl-evidence', 'link'];
-  return <div className={`ai-section-label ${cls}`}><Icon name={icon} size={12} /> {label}</div>;
+  return <div className={`ai-section-label ${cls}`}><Icon name={icon} size={12} /> {lang === 'ar' && arMap[kind] ? arMap[kind] : label}</div>;
 }
 
 export function AnswerBody({ answer }) {
   const nav = useNavigate();
+  const rtl = answer.lang === 'ar';
   return (
-    <div>
+    <div dir={rtl ? 'rtl' : 'ltr'}>
       <div className="muted small mb-2" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <span className="code-chip">intent: {answer.intent}</span>
         <span className="code-chip">scope: {answer.scope}</span>
       </div>
-      {answer.actions?.length > 0 && <><SectionLabel kind="actions" /><ActionButtons actions={answer.actions} /></>}
+      {answer.actions?.length > 0 && <><SectionLabel kind="actions" lang={answer.lang} /><ActionButtons actions={answer.actions} /></>}
       {answer.facts.length > 0 && <>
-        <SectionLabel kind="facts" />
+        <SectionLabel kind="facts" lang={answer.lang} />
         <ul className="ai-list">{answer.facts.map((f, i) => <li key={i}>{renderText(f, nav)}</li>)}</ul>
       </>}
       {answer.evidence?.length > 0 && <>
-        <SectionLabel kind="evidence" />
+        <SectionLabel kind="evidence" lang={answer.lang} />
         <ul className="ai-list muted small">{answer.evidence.slice(0, 8).map((f, i) => <li key={i}>{typeof f === 'string' ? f : JSON.stringify(f)}</li>)}</ul>
       </>}
       {answer.findings.length > 0 && <>
-        <SectionLabel kind="findings" />
+        <SectionLabel kind="findings" lang={answer.lang} />
         <ul className="ai-list">{answer.findings.map((f, i) => <li key={i}>{renderText(f, nav)}</li>)}</ul>
       </>}
       {answer.recommendations.length > 0 && <>
-        <SectionLabel kind="recommendations" />
+        <SectionLabel kind="recommendations" lang={answer.lang} />
         <ul className="ai-list">{answer.recommendations.map((f, i) => <li key={i}>{renderText(f, nav)}</li>)}</ul>
       </>}
       {answer.citations.length > 0 && <CitationRow citations={answer.citations} />}
       <div className="muted small mt-3" style={{ borderTop: '1px dashed var(--border)', paddingTop: 8 }}>
-        ⚠ Advisory only. Facts come from your authorized live database. Changes require human approval.
+        {rtl ? '⚠ استشاري فقط. الحقائق من قاعدة بياناتك الحية. التغييرات تحتاج موافقة بشرية.' : '⚠ Advisory only. Facts come from your authorized live database. Changes require human approval.'}
       </div>
     </div>
   );

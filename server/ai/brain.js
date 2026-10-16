@@ -9,6 +9,7 @@ const config = require('../config');
 const { MODULES, findByCode, CODE_TO_MODULE } = require('../modules');
 const { daysUntil, riskRating } = require('../utils');
 const guide = require('./guide');
+const ar = require('./ar');
 const doer = require('./do');
 const maker = require('./make');
 const flow = require('./flow');
@@ -835,7 +836,7 @@ function tryMulti(question, user) {
   return { ...a, question };
 }
 
-function ask(question, user, ctx, depth) {
+function askInner(question, user, ctx, depth) {
   // Memory first: "open the second one" resolves against the previous answer.
   if (ctx) {
     try {
@@ -955,6 +956,23 @@ function ask(question, user, ctx, depth) {
   a.facts.unshift(`I matched your question to a general system scan. Try asking more specifically:`);
   a.recommendations.push('Examples: "Which risks are getting worse?", "Which suppliers have repeated problems?", "Show everything connected to NC-0005", "Which documents need review?", "Prepare a management review summary", "Summarize RSK-0001", "What information is missing?"');
   return { ...a, question };
+}
+
+/* Arabic wrapper: detect Arabic, answer quick ones directly, normalize the
+ * rest to English for the full pipeline, then arabize the scaffolding. */
+function ask(question, user, ctx, depth) {
+  if (!ctx && ar.isArabic(question)) {
+    try {
+      const aquick = ar.quick(question, user);
+      if (aquick) return { ...aquick, question };
+      const norm = ar.normalize(question);
+      if (norm === question) return { ...ar.offTopicAr(user), question };
+      const a = askInner(norm, user, null, depth || 0);
+      if (!a || a.intent === 'off_topic') return { ...ar.offTopicAr(user), question };
+      return ar.arabize(a, user);
+    } catch {}
+  }
+  return askInner(question, user, ctx, depth);
 }
 
 /* ------------------------------------------------------------------ *

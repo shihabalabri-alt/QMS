@@ -42,6 +42,8 @@ const TIME_AR = [
   ['الاثنين', 'monday'], ['الثلاثاء', 'tuesday'], ['الأربعاء', 'wednesday'],
   ['الخميس', 'thursday'], ['الجمعة', 'friday'], ['السبت', 'saturday'], ['الأحد', 'sunday'],
   ['حرج', 'critical'], ['عاجل', 'critical'], ['عالية', 'high'], ['مهم', 'high'],
+  ['جاهزين', 'ready'], ['جاهزون', 'ready'], ['جاهزة', 'ready'], ['جاهز', 'ready'],
+  ['للتدقيق', 'audit'], ['استعداد', 'ready'], ['استعداداً', 'ready'], ['الاستعداد', 'prepared'],
 ];
 
 function replaceAll(s, pairs) {
@@ -93,6 +95,7 @@ const HEADLINES = {
   bulk_draft: 'تم إعداد الحركة الجماعية — راجع ثم اضغط تأكيد.',
   briefing: 'الموجز الصباحي:',
   month_pulse: 'نبض الشهر:',
+  audit_readiness: 'جاهزية التدقيق:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',

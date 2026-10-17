@@ -770,6 +770,58 @@ function answerMissing(c, A, user) {
   return a;
 }
 
+/* Audit-readiness: "are we ready for an audit?" — transparent rule-based
+ * score computed from live data; every lost point names real records. */
+function answerAuditReadiness(c, A, user) {
+  const a = baseAnswer('audit_readiness', user);
+  a.scope = 'audit readiness score (rule-based, from live data)';
+  const T = new Date().toISOString().slice(0, 10);
+  const n = x => (x || []).length;
+  const docsOver = A.docsForReview.filter(d => d.review_date && d.review_date < T);
+  const calOver = A.calibrationDue.filter(e => e.next_calibration && e.next_calibration < T);
+  const nonComp = A.complianceGaps.filter(g => g.status === 'non_compliant');
+  const secs = [
+    { name: 'Corrective actions', items: A.overdueActions, per: 4, cap: 24, citeType: 'Action', desc: 'overdue' },
+    { name: 'Non-conformances >30 days', items: A.overdueNCs, per: 5, cap: 20, citeType: 'NC', desc: 'open over 30 days' },
+    { name: 'Document control', items: docsOver, per: 3, cap: 15, citeType: 'Document', desc: 'review overdue' },
+    { name: 'Policy control', items: A.policiesForReview, per: 2, cap: 6, citeType: 'Policy', desc: 'review due' },
+    { name: 'Risk reviews', items: A.overdueRiskReviews, per: 3, cap: 12, citeType: 'Risk', desc: 'review overdue' },
+    { name: 'High residual risks', items: A.highResidualRisks, per: 3, cap: 12, citeType: 'Risk', desc: 'high residual rating' },
+    { name: 'Equipment calibration', items: calOver, per: 4, cap: 12, citeType: 'Equipment', desc: 'calibration overdue' },
+    { name: 'Compliance register', items: nonComp, per: 6, cap: 18, citeType: 'Compliance', desc: 'non-compliant' },
+    { name: 'Internal audit findings', items: A.openAuditFindings, per: 3, cap: 12, citeType: 'Audit', desc: 'finding still open' },
+    { name: 'Supplier control', items: A.pendingSuppliers, per: 2, cap: 6, citeType: 'Supplier', desc: 'pending qualification' },
+    { name: 'Data integrity', items: A.missingInfo, per: 1, cap: 10, desc: 'record missing fields' }
+  ];
+  const rows = secs.map(s => ({ ...s, loss: Math.min(s.cap, n(s.items) * s.per) })).filter(s => n(s.items));
+  const loss = rows.reduce((t, s) => t + s.loss, 0);
+  const score = Math.max(0, 100 - loss);
+  const verdict = score >= 85 ? 'READY — green across the board'
+    : score >= 70 ? 'MOSTLY READY — pre-empt a few findings'
+    : score >= 55 ? 'PATCHY — an auditor will find these fast'
+    : 'NOT READY — fix the worst sections first';
+  a.facts.push(`Audit-readiness score: ${score}/100 — ${verdict}.`);
+  a.facts.push('Rule-based score from your live database — every lost point is a real record named below.');
+  for (const s of rows) {
+    const ex = s.items.filter(x => x.code).slice(0, 3).map(x => x.code).join(', ');
+    a.facts.push(`• ${s.name}: ${n(s.items)} × ${s.desc} → −${s.loss} pts${ex ? ` (e.g. ${ex})` : ''}`);
+    s.items.slice(0, 3).forEach(x => {
+      const type = s.citeType || typeLabel(CODE_TO_MODULE[(x.code || '').split('-')[0]] || 'records');
+      cite(a, type, x.code, x.title);
+    });
+  }
+  if (!rows.length) a.facts.push('Nothing flagged in any section — spotless.');
+  const worst = [...rows].sort((x, y) => y.loss - x.loss).slice(0, 3);
+  a.findings.push(`Auditors probe these first: ${worst.length ? worst.map(s => s.name.toLowerCase()).join(', ') : 'nothing — keep it that way'}. Have owners and dispositions ready.`);
+  worst.forEach(s => a.recommendations.push(`Close out ${s.name.toLowerCase()}: ${n(s.items)} open item(s) in your live data right now.`));
+  a.recommendations.push('Print this answer (Ctrl+P) a week before the audit and walk every bullet to its owner.');
+  a.recommendations.push('Ask "escalate all overdue actions" to pre-draft the whole escalation in one Confirm.');
+  a.actions.push({ kind: 'navigate', label: 'Open Actions', link: '/actions', primary: true, auto: false });
+  a.actions.push({ kind: 'navigate', label: 'Open Audits', link: '/audits', primary: false, auto: false });
+  a.evidence = secs.map(s => ({ section: s.name, count: n(s.items), loss: s.loss }));
+  return a;
+}
+
 const INTENTS = [
   { id: 'month_pulse', match: /better than last|versus|month over month|this month|last month|are we (better|worse|improving)|month vs|vs\.? month/i, run: answerMonthPulse },
   { id: 'briefing', match: /brief(ing)?|morning briefing|daily (brief|summary|report)|what( is|'s)? (happening|new|going on)|today'?s priorit|rundown|catch me up|how is the company|company status/i, run: answerBriefing },
@@ -892,6 +944,10 @@ function askInner(question, user, ctx, depth) {
   // Month-over-month pulse pre-guide ("are we better than last month?")
   if (/better than last month|worse than last month|month over month|vs\.? last month|versus last month|are we (better|worse|improving)/i.test(question)) {
     return { ...answerMonthPulse(c, A, user), question };
+  }
+  // Audit-readiness pre-guide ("are we ready for an audit?", "ISO 9001 ready?")
+  if (/ready|readiness|prepared|prepar/i.test(question) && /audit|iso|9001|inspection/i.test(question)) {
+    return { ...answerAuditReadiness(c, A, user), question };
   }
 
   // Do-actions first: "open / take me to / find ..." executes navigation + record opening.

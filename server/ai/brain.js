@@ -993,8 +993,10 @@ function answerSlippage(question, user) {
     return { ...x, score: Math.min(100, score), why };
   }).filter(x => x.score >= 30).sort((x, y) => y.score - x.score);
   if (!scored.length) {
+    const noDates = open.filter(x => !x.due_date).length;
     a.facts.push(`Slippage check — ${open.length} open action(s), nothing scoring at risk right now.`);
-    a.findings.push('No action currently trips the slip threshold (overdue, imminent, unowned load or missing date).');
+    a.findings.push('No action currently trips the 30-point slip threshold — nothing overdue, imminent, or held by an overloaded owner.');
+    if (noDates) a.facts.push(`${noDates} open action(s) have no due date — low risk today, but they can slip silently.`);
     a.recommendations.push('Keep due dates on every action — undated work is invisible until it is late.');
     a.actions.push({ kind: 'navigate', label: 'Open actions board', link: '/actions?status=open', primary: true, auto: false });
     return a;

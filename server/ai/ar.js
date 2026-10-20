@@ -48,6 +48,9 @@ const TIME_AR = [
   ['ماذا تغيّر', 'what changed'], ['ماذا تغير', 'what changed'], ['ماذا حدث', 'what happened'], ['ماذا حصل', 'what happened'],
   ['التغييرات الأخيرة', 'recent changes'], ['هذا الأسبوع', 'this week'],
   ['الأسبوع الماضي', 'last week'], ['هذا الشهر', 'this month'], ['الشهر الماضي', 'last month'],
+  ['من المسؤول عن', 'who owns'], ['من المسؤول', 'who owns'], ['من يملك', 'who owns'], ['لمن يعود', 'who owns'],
+  ['ضغط العمل', 'workload'], ['حمل العمل', 'workload'], ['توزيع العمل', 'workload'], ['الحمل الزائد', 'workload'],
+  ['مشغول جداً', 'who is overloaded'], ['مشغول', 'who is busy'], ['من عنده أكثر', 'who has the most work'],
 ];
 
 function replaceAll(s, pairs) {
@@ -102,6 +105,8 @@ const HEADLINES = {
   audit_readiness: 'جاهزية التدقيق:',
   evidence_pack: 'ملف الأدلة:',
   what_changed: 'سجل التغييرات:',
+  workload: 'توزيع العمل:',
+  ownership: 'المسؤولية:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',
@@ -114,6 +119,10 @@ const HEADLINES = {
 
 function labelAr(label) {
   let t = String(label || '');
+  t = t.replace(/^Open actions board$/, 'فتح لوحة الإجراءات');
+  t = t.replace(/^Open activity$/, 'فتح سجل النشاط');
+  t = t.replace(/^Open Actions$/, 'فتح الإجراءات');
+  t = t.replace(/^Open Audits$/, 'فتح التدقيقات');
   t = t.replace(/^Open /, 'فتح ');
   t = t.replace(/^Confirm & create$/, 'تأكيد وإنشاء');
   t = t.replace(/^Confirm & (.+)$/, 'تأكيد $1');

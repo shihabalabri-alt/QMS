@@ -16,6 +16,7 @@ const QUICK = [
   'Are we better than last month?',
   'Are we ready for an audit?',
   'What changed this week?',
+  'Who is overloaded?',
   'Turn on dark mode'
 ];
 

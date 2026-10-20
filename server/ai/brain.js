@@ -884,6 +884,84 @@ function answerWhatChanged(question, user) {
   return a;
 }
 
+/* Workload & ownership: "who is overloaded?", "who owns RSK-0001?". */
+const OPEN_ACT = "status NOT IN ('completed','verified','cancelled')";
+function addDaysStr(iso, n) { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+function answerWorkload(question, user) {
+  const a = baseAnswer('workload', user);
+  const T = new Date().toISOString().slice(0, 10), soon = addDaysStr(T, 7);
+  const openActs = q(`SELECT * FROM actions WHERE ${OPEN_ACT} ORDER BY due_date`);
+  const by = new Map();
+  const bucket = id => {
+    const k = id || 0;
+    if (!by.has(k)) by.set(k, { id: k, name: id ? ((q1('SELECT name FROM users WHERE id = ?', id) || {}).name || `User ${id}`) : 'Unassigned', open: 0, overdue: 0, critical: 0, soon: 0, risks: 0, ncs: 0, top: [] });
+    return by.get(k);
+  };
+  for (const x of openActs) {
+    const b = bucket(x.owner_id); b.open++;
+    if (x.due_date && x.due_date < T) b.overdue++;
+    if (x.priority === 'critical') b.critical++;
+    if (x.due_date && x.due_date >= T && x.due_date <= soon) b.soon++;
+    if (b.top.length < 2 && x.due_date && x.due_date < T) b.top.push(x);
+  }
+  for (const r of q("SELECT owner_id FROM risks WHERE status NOT IN ('closed','archived')")) if (r.owner_id) bucket(r.owner_id).risks++;
+  for (const n of q("SELECT owner_id FROM nonconformances WHERE status != 'closed'")) if (n.owner_id) bucket(n.owner_id).ncs++;
+  const list = [...by.values()].map(b => ({ ...b, score: b.open * 2 + b.overdue * 3 + b.critical * 3 + b.risks * 2 + b.ncs * 2 })).sort((x, y) => y.score - x.score);
+  const unassigned = by.get(0) || { open: 0 };
+  const visible = user.role === 'employee' ? list.filter(b => b.id === user.id) : list;
+  a.facts.push(`Workload — ${openActs.length} open action(s) across ${list.filter(b => b.id).length} owner(s)${unassigned.open ? ` · ${unassigned.open} unassigned` : ''}.`);
+  const band = b => (b.overdue >= 6 || b.critical >= 3 || b.open >= 12 ? 'OVERLOADED' : b.overdue >= 2 || b.open >= 6 ? 'busy' : 'light');
+  for (const b of visible.filter(x => x.id).slice(0, 7)) {
+    a.facts.push(`• ${b.name} — ${b.open} open (${b.overdue} overdue, ${b.critical} critical, ${b.soon} due ≤7d)${b.risks ? ` · ${b.risks} risk(s)` : ''}${b.ncs ? ` · ${b.ncs} NC(s)` : ''} → ${band(b)}`);
+    b.top.forEach(x => cite(a, 'Action', x.code, x.title));
+  }
+  if (unassigned.open) a.facts.push(`• Unassigned — ${unassigned.open} action(s) nobody owns: assign these first.`);
+  const mine = list.find(b => b.id === user.id);
+  if (mine) {
+    a.facts.push(`Your own load: ${mine.open} open (${mine.overdue} overdue, ${mine.critical} critical).`);
+    if (mine.top[0]) a.findings.push(`Your oldest overdue item is ${mine.top[0].code} — "${mine.top[0].title}".`);
+  }
+  const heavy = list.filter(b => b.id && band(b) === 'OVERLOADED');
+  const lights = list.filter(b => b.id && b.open <= 2 && b.overdue === 0);
+  if (heavy.length) a.findings.push(`Overloaded right now: ${heavy.map(b => b.name).join(', ')} — commitments will slip.`);
+  if (lights.length && heavy.length) a.recommendations.push(`Rebalance: ${lights[0].name} has only ${lights[0].open} open action(s) — a good place to reassign from ${heavy[0].name}.`);
+  if (unassigned.open) a.recommendations.push('Assign every unowned action — auditors treat orphan actions as a control gap.');
+  a.recommendations.push('Reassess load at the next team meeting; aim for no owner above 6 open actions.');
+  a.actions.push({ kind: 'navigate', label: 'Open actions board', link: '/actions?status=open', primary: true, auto: false });
+  a.evidence = list.slice(0, 10).map(b => ({ owner: b.name, open: b.open, overdue: b.overdue, critical: b.critical, risks: b.risks, ncs: b.ncs, score: b.score }));
+  return a;
+}
+
+function answerOwnership(c, A, user, hit) {
+  const a = baseAnswer('ownership', user);
+  const r = hit.row, label = typeLabel(hit.module), title = titleOf(hit.module, r);
+  const T = new Date().toISOString().slice(0, 10);
+  cite(a, label, r.code, title);
+  a.facts.push(`${r.code} "${title}" — ${MODULES[hit.module].title} · status: ${r.status || 'n/a'}.`);
+  const u = r.owner_id ? q1('SELECT name, department, job_title FROM users WHERE id = ?', r.owner_id) : null;
+  if (u) {
+    a.facts.push(`Owner: ${u.name}${u.job_title ? ` (${u.job_title})` : ''}${u.department ? ` — ${u.department}` : ''}.`);
+    const openA = (q1(`SELECT COUNT(*) c FROM actions WHERE owner_id = ? AND ${OPEN_ACT}`, r.owner_id) || {}).c || 0;
+    const overA = (q1(`SELECT COUNT(*) c FROM actions WHERE owner_id = ? AND ${OPEN_ACT} AND due_date < ?`, r.owner_id, T) || {}).c || 0;
+    const openR = (q1("SELECT COUNT(*) c FROM risks WHERE owner_id = ? AND status NOT IN ('closed','archived')", r.owner_id) || {}).c || 0;
+    a.facts.push(`Their current load: ${openA} open action(s)${overA ? ` (${overA} overdue)` : ''} · ${openR} open risk(s).`);
+    const plate = q(`SELECT code, title, due_date FROM actions WHERE owner_id = ? AND ${OPEN_ACT} ORDER BY COALESCE(due_date, '9999') LIMIT 3`, r.owner_id);
+    if (plate.length) a.facts.push('On their plate: ' + plate.map(x => `${x.code} "${x.title}"${x.due_date ? ` due ${x.due_date}` : ''}`).join(' · '));
+    const late = q(`SELECT code, title, due_date FROM actions WHERE owner_id = ? AND ${OPEN_ACT} AND due_date < ? ORDER BY due_date LIMIT 2`, r.owner_id, T);
+    late.forEach(x => { a.findings.push(`${x.code} is overdue since ${x.due_date} — chase the owner, not the file.`); cite(a, 'Action', x.code, x.title); });
+  } else {
+    a.facts.push(`No owner recorded${r.department ? ` — department: ${r.department}` : ''}.`);
+    a.findings.push('Unowned record — this is a classic audit finding.');
+    a.recommendations.push('Assign an owner before the next review.');
+  }
+  const linked = q('SELECT code, title, status FROM actions WHERE source_code = ?', r.code);
+  if (linked.length) a.facts.push(`Linked action(s): ${linked.map(x => `${x.code} (${x.status})`).join(', ')}.`);
+  a.recommendations.push('Tap the record link to reassign or add a deputy in the record form.');
+  a.actions.push({ kind: 'navigate', label: `Open ${r.code}`, link: linkFor(label, r.code), primary: true, auto: false });
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1096,6 +1174,15 @@ function askInner(question, user, ctx, depth) {
   // Change diary pre-guide ("what changed this week?", "what happened today?")
   if (/what(?:'s| is| has)? (?:changed|happened)|change ?(?:log|diary)|recent (?:changes|activity)|activity (?:this|last|today)|who changed|timeline/i.test(question)) {
     return { ...answerWhatChanged(question, user), question };
+  }
+  // Workload pre-guide ("who is overloaded?", "my workload")
+  if (/workload|overload|too much work|who(?:'s| is) (?:busy|swamped|overloaded|loaded)|(?:work|load) balance|who has the most (?:open|work)|my workload/i.test(question)) {
+    return { ...answerWorkload(question, user), question };
+  }
+  // Ownership pre-guide ("who owns RSK-0001?", "owner of NC-0002")
+  if (/who (?:owns|is responsible for|is the owner of)|owner of|who(?:'s| is) in charge/i.test(question)) {
+    const owners = entityMentions(question);
+    if (owners.length) return { ...answerOwnership(c, A, user, owners[0]), question };
   }
 
   // Do-actions first: "open / take me to / find ..." executes navigation + record opening.

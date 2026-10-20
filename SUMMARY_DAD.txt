@@ -64,6 +64,7 @@ NEW: Arabic-AI — اسأل بالعربية: افتح، أنشئ، وافق، �
 NEW: Voice-AI — tap 🎤 and talk instead of typing; tap 🔊 on any answer to hear it. Arabic answers speak Arabic.
 NEW: Audit-AI — "are we ready for an audit?" gives a readiness score out of 100 built from live data, Arabic too.
 NEW: Pack-AI — "evidence pack RSK-0001" or "flashcard NC-0002" gives a one-page printable evidence pack with every linked record and a Print button.
+NEW: Diary-AI — "what changed this week?" shows a clean change diary: who changed what, field by field, from the audit trail. Arabic too.
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

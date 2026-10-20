@@ -51,6 +51,8 @@ const TIME_AR = [
   ['من المسؤول عن', 'who owns'], ['من المسؤول', 'who owns'], ['من يملك', 'who owns'], ['لمن يعود', 'who owns'],
   ['ضغط العمل', 'workload'], ['حمل العمل', 'workload'], ['توزيع العمل', 'workload'], ['الحمل الزائد', 'workload'],
   ['مشغول جداً', 'who is overloaded'], ['مشغول', 'who is busy'], ['من عنده أكثر', 'who has the most work'],
+  ['مهدد بالتأخر', 'at risk of slipping'], ['مهدّد بالتأخر', 'at risk of slipping'], ['خطر التأخر', 'risk of slippage'],
+  ['ما الذي سيتأخر', 'what will slip'], ['سيتأخر', 'will slip'], ['تأخر التسليم', 'risk of delay'],
 ];
 
 function replaceAll(s, pairs) {
@@ -107,6 +109,7 @@ const HEADLINES = {
   what_changed: 'سجل التغييرات:',
   workload: 'توزيع العمل:',
   ownership: 'المسؤولية:',
+  slippage_risk: 'مهددون بالتأخر:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',

@@ -962,6 +962,66 @@ function answerOwnership(c, A, user, hit) {
   return a;
 }
 
+/* Slippage risk: "what is at risk of slipping?" — action-level score from
+ * overdue days, proximity, owner load, priority, stale age, missing dates. */
+function answerSlippage(question, user) {
+  const a = baseAnswer('slippage_risk', user);
+  const T = new Date().toISOString().slice(0, 10);
+  const open = q(`SELECT * FROM actions WHERE ${OPEN_ACT}`);
+  const loadBy = {}, overdueBy = {};
+  const nameOf = id => (q1('SELECT name FROM users WHERE id = ?', id) || {}).name || 'Unassigned';
+  for (const x of open) {
+    const k = x.owner_id || 0;
+    loadBy[k] = (loadBy[k] || 0) + 1;
+    if (x.due_date && x.due_date < T) overdueBy[k] = (overdueBy[k] || 0) + 1;
+  }
+  const days = d => Math.round((new Date(d + 'T00:00:00Z') - new Date(T + 'T00:00:00Z')) / 86400000);
+  const scored = open.map(x => {
+    let score = 0; const why = [];
+    const d = x.due_date ? days(x.due_date) : null;
+    if (d !== null && d < 0) { score += Math.min(45, 20 + (-d)); why.push(`${-d}d overdue`); }
+    else if (d !== null && d <= 3) { score += 12; why.push(d === 0 ? 'due today' : `due in ${d}d`); }
+    if (d === null) { score += 10; why.push('no due date'); }
+    if (x.priority === 'critical') { score += 15; why.push('critical priority'); }
+    const load = loadBy[x.owner_id || 0] || 0;
+    if (load >= 10) { score += 12; why.push(`owner has ${load} open`); }
+    else if (load >= 6) { score += 8; why.push(`owner has ${load} open`); }
+    const od = overdueBy[x.owner_id || 0] || 0;
+    if (od >= 3) { score += 8; why.push(`${od} overdue on owner`); }
+    const age = x.created_at ? (Date.now() - new Date(x.created_at).getTime()) / 86400000 : 0;
+    if (age > 30) { score += 6; why.push('open >30 days'); }
+    return { ...x, score: Math.min(100, score), why };
+  }).filter(x => x.score >= 30).sort((x, y) => y.score - x.score);
+  if (!scored.length) {
+    a.facts.push(`Slippage check — ${open.length} open action(s), nothing scoring at risk right now.`);
+    a.findings.push('No action currently trips the slip threshold (overdue, imminent, unowned load or missing date).');
+    a.recommendations.push('Keep due dates on every action — undated work is invisible until it is late.');
+    a.actions.push({ kind: 'navigate', label: 'Open actions board', link: '/actions?status=open', primary: true, auto: false });
+    return a;
+  }
+  const veryHigh = scored.filter(x => x.score >= 60);
+  const high = scored.filter(x => x.score >= 45 && x.score < 60);
+  const watch = scored.length - veryHigh.length - high.length;
+  const risky = veryHigh.length + high.length;
+  a.facts.push(`Slippage check — ${risky} of ${open.length} open action(s) are at risk of slipping${watch ? ` · ${watch} more at watch level (undated or heavy load)` : ''}.`);
+  a.facts.push(`Split: ${veryHigh.length} very likely (≥60) · ${high.length} high (45–59) · ${watch} watch (30–44).`);  for (const x of scored.slice(0, 8)) {
+    a.facts.push(`• ${x.code} "${x.title}" — slip risk ${x.score}/100 (${x.why.join(', ')}) · owner: ${nameOf(x.owner_id)} · due: ${x.due_date || 'none'}`);
+    cite(a, 'Action', x.code, x.title);
+  }
+  const top = scored[0];
+  a.findings.push(`First to slip: ${top.code} — "${top.title}" (${top.score}/100, ${top.why.join(', ')}).`);
+  const overdueOpen = open.filter(x => x.due_date && x.due_date < T).length;
+  if (overdueOpen > open.length * 0.3) a.findings.push(`${overdueOpen} of ${open.length} open actions are already overdue — the plan is behind, not at risk.`);
+  const noDate = open.filter(x => !x.due_date).length;
+  if (noDate) a.findings.push(`${noDate} open action(s) have no due date — they can slip silently.`);
+  a.recommendations.push(`Triage ${top.code} first: confirm the owner, reset the date, or escalate it today.`);
+  a.recommendations.push('Ask "escalate all overdue actions" to pre-draft the escalation in one Confirm.');
+  a.recommendations.push('Ask "who is overloaded?" — slippage usually follows one person holding too much.');
+  a.actions.push({ kind: 'navigate', label: 'Open actions board', link: '/actions?status=open', primary: true, auto: false });
+  a.evidence = scored.slice(0, 15).map(x => ({ code: x.code, title: x.title, score: x.score, why: x.why, due: x.due_date, owner: nameOf(x.owner_id) }));
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1178,6 +1238,10 @@ function askInner(question, user, ctx, depth) {
   // Workload pre-guide ("who is overloaded?", "my workload")
   if (/workload|overload|too much work|who(?:'s| is) (?:busy|swamped|overloaded|loaded)|(?:work|load) balance|who has the most (?:open|work)|my workload/i.test(question)) {
     return { ...answerWorkload(question, user), question };
+  }
+  // Slippage pre-guide ("what is at risk of slipping?", "what will be late?")
+  if (/at risk of (?:slipping|missing|being late)|likely to slip|slip(?:ping)? risk|what will (?:slip|be late)|risk of (?:delay|slippage)|what('s| is) at risk/i.test(question)) {
+    return { ...answerSlippage(question, user), question };
   }
   // Ownership pre-guide ("who owns RSK-0001?", "owner of NC-0002")
   if (/who (?:owns|is responsible for|is the owner of)|owner of|who(?:'s| is) in charge/i.test(question)) {

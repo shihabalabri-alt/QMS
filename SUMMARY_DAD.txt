@@ -62,6 +62,7 @@ NEW: Compare-AI — "compare Nordic" trends suppliers; "are we better than last 
 NEW: Multi-AI — paste a whole paragraph; it splits it into jobs and does them all. Long messages show live thinking steps.
 NEW: Arabic-AI — اسأل بالعربية: افتح، أنشئ، وافق، موجز، قارن. الأجوبة والتوجيهات بالعربية (RTL).
 NEW: Voice-AI — tap 🎤 and talk instead of typing; tap 🔊 on any answer to hear it. Arabic answers speak Arabic.
+NEW: Audit-AI — "are we ready for an audit?" gives a readiness score out of 100 built from live data, Arabic too.
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

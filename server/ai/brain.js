@@ -357,7 +357,14 @@ function neighbors(type, code, user) {
   return out.filter(n => { const k = `${n.type}|${n.code}|${n.label}`; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 18);
 }
 
+const TYPE_LABEL = {
+  policies: 'Policy', goals: 'KPI', risks: 'Risk', suppliers: 'Supplier', employees: 'Employee',
+  competencies: 'Competency', trainings: 'Training', records: 'Record', documents: 'Document',
+  design_reviews: 'Design review', equipment: 'Equipment', nonconformances: 'NC', audits: 'Audit',
+  compliance: 'Compliance', mgmt_reviews: 'Mgmt review', actions: 'Action'
+};
 function typeLabel(moduleKey) {
+  if (TYPE_LABEL[moduleKey]) return TYPE_LABEL[moduleKey];
   const m = MODULES[moduleKey]; return m ? m.title.replace(/s$/, '').replace('NC & Incident', 'NC') : moduleKey;
 }
 function titleOf(moduleKey, row) { return row.title || row.name || row.code; }
@@ -740,6 +747,52 @@ function answerSummarize(c, A, user, hit) {
   return a;
 }
 
+/* Evidence pack: "evidence pack RSK-0001" / "flashcard NC-0002" — a compact,
+ * printable one-pager built entirely from live linked data. */
+function answerEvidencePack(c, A, user, hit) {
+  const a = baseAnswer('evidence_pack', user);
+  a.scope = 'one-page evidence pack (live data)';
+  const r = hit.row, label = typeLabel(hit.module), title = titleOf(hit.module, r);
+  cite(a, label, r.code, title);
+  a.facts.push(`Evidence pack — ${r.code} "${title}" (${MODULES[hit.module].title})`);
+  const owner = r.owner_id ? (q1('SELECT name FROM users WHERE id = ?', r.owner_id) || {}).name : null;
+  const bits = [`status: ${r.status || 'n/a'}`];
+  if (owner) bits.push(`owner: ${owner}`);
+  if (r.department) bits.push(`department: ${r.department}`);
+  for (const k of ['severity', 'priority', 'occurred_at', 'due_date', 'review_date', 'effective_date', 'version', 'next_calibration', 'expiry_date']) {
+    if (r[k]) bits.push(`${k.replace(/_/g, ' ')}: ${r[k]}`);
+  }
+  a.facts.push(bits.join(' · '));
+  const inh = r.inherent_score ?? (r.inherent_likelihood ? r.inherent_likelihood * r.inherent_severity : null);
+  const res = r.residual_score ?? (r.residual_likelihood ? r.residual_likelihood * r.residual_severity : null);
+  if (inh || res) a.facts.push(`Risk score: inherent ${inh ?? 'n/a'} → residual ${res ?? 'n/a'} (${riskRating(res ?? inh).toUpperCase()}).`);
+  if (r.description) a.facts.push(`Description: ${String(r.description).slice(0, 220)}`);
+  if (r.root_cause) a.facts.push(`Root cause: ${String(r.root_cause).slice(0, 220)}`);
+  const g = graph(label, r.code, user, 2);
+  const linked = g.nodes.filter(n => n.rel !== 'query origin');
+  a.facts.push(`Linked evidence (${linked.length} item(s)):`);
+  const rank = n => (n.type === 'Action' ? 0 : n.type === 'NC' ? 1 : ['Risk', 'Audit', 'Document', 'Policy', 'Supplier'].includes(n.type) ? 2 : 3);
+  for (const n of [...linked].sort((x, y) => rank(x) - rank(y)).slice(0, 10)) {
+    a.facts.push(`• [${n.type}] ${n.label} — ${n.rel}`);
+    if (n.code) cite(a, n.type, n.code, n.label);
+  }
+  let openActs = [];
+  try { openActs = q("SELECT code, title, status, due_date FROM actions WHERE source_code = ? AND status NOT IN ('completed','verified','cancelled') ORDER BY due_date", r.code); } catch {}
+  if (openActs.length) a.facts.push(`Open actions on this record: ${openActs.map(x => `${x.code} (${x.status}${x.due_date ? ', due ' + x.due_date : ''})`).join('; ')}`);
+  const mi = A.missingInfo.filter(x => x.code === r.code);
+  for (const x of mi) a.findings.push(`Missing information: ${x.gaps.join(', ')}.`);
+  const dueK = ['review_date', 'due_date', 'next_calibration', 'expiry_date'].find(k => r[k] && daysUntil(r[k]) < 0 && !['closed', 'obsolete', 'archived', 'completed', 'verified', 'cancelled'].includes(r.status));
+  if (dueK) a.findings.push(`${dueK.replace(/_/g, ' ')} is overdue (${r[dueK]}).`);
+  if (hit.module === 'nonconformances' && r.status !== 'closed') a.findings.push('NC not closed — effectiveness verification is still pending.');
+  if (!linked.length) a.findings.push('No linked records — an auditor may ask for supporting evidence from outside the system.');
+  a.recommendations.push('Print this pack and attach the referenced records as the evidence bundle.');
+  a.recommendations.push('Each open action above needs closure evidence: what changed, who verified it, and when.');
+  a.actions.push({ kind: 'client', op: 'print', label: 'Print this pack', primary: true });
+  a.actions.push({ kind: 'navigate', label: `Open ${r.code}`, link: linkFor(label, r.code), primary: false });
+  a.evidence = linked.slice(0, 20).map(n => ({ type: n.type, label: n.label, relation: n.rel, link: n.link || null }));
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -979,6 +1032,10 @@ function askInner(question, user, ctx, depth) {
   const guided = guide.answerSiteGuide(question, user);
   if (guided) return { ...guided, question };
   const mentions = entityMentions(question);
+
+  // Evidence pack: "evidence pack RSK-0001", "flashcard NC-0002", "print pack".
+  const wantsPack = /flash.?card|evidence pack|one[- ]pager|print(able)? (summary|pack|card|sheet)|audit pack|evidence (for|on)|dossier/i.test(question);
+  if (mentions.length && wantsPack) return { ...answerEvidencePack(c, A, user, mentions[0]), question };
 
   // entity-specific intents take priority
   const wantsRelated = /connected|related|linked|everything about|graph|show all/i.test(question);

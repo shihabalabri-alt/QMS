@@ -70,6 +70,7 @@ export function AnswerBody({ answer }) {
 
 export function applyClientAction(a) {
   if (!a || a.kind !== 'client') return false;
+  if (a.op === 'print') { setTimeout(() => { try { window.print(); } catch {} }, 150); return true; }
   if (a.op === 'theme' && (a.value === 'dark' || a.value === 'light')) {
     document.documentElement.dataset.theme = a.value;
     try { localStorage.setItem('qms-theme', a.value); } catch {}
@@ -110,7 +111,7 @@ export function ActionButtons({ actions }) {
   return (
     <div className="mb-3" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       {actions.map((a, i) => a.kind === 'client'
-        ? <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} onClick={() => applyClientAction(a)}><Icon name="send" size={14} /> {a.label}</button>
+        ? <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} onClick={() => applyClientAction(a)}><Icon name={a.op === 'print' ? 'printer' : 'send'} size={14} /> {a.label}</button>
         : a.kind === 'api'
         ? <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} disabled={busy} onClick={() => runApi(a)}><Icon name="plus" size={14} /> {busy ? 'Creating…' : a.label}</button>
         : <button key={i} className={`btn ${a.primary ? 'primary' : ''}`} onClick={() => a.link && nav(a.link)}><Icon name="link" size={14} /> {a.label} →</button>

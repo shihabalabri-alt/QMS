@@ -44,6 +44,7 @@ const TIME_AR = [
   ['حرج', 'critical'], ['عاجل', 'critical'], ['عالية', 'high'], ['مهم', 'high'],
   ['جاهزين', 'ready'], ['جاهزون', 'ready'], ['جاهزة', 'ready'], ['جاهز', 'ready'],
   ['للتدقيق', 'audit'], ['استعداد', 'ready'], ['استعداداً', 'ready'], ['الاستعداد', 'prepared'],
+  ['ملف الأدلة', 'evidence pack'], ['ملف أدلة', 'evidence pack'], ['بطاقة أدلة', 'evidence pack'], ['بطاقة', 'flashcard'],
 ];
 
 function replaceAll(s, pairs) {
@@ -96,6 +97,7 @@ const HEADLINES = {
   briefing: 'الموجز الصباحي:',
   month_pulse: 'نبض الشهر:',
   audit_readiness: 'جاهزية التدقيق:',
+  evidence_pack: 'ملف الأدلة:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',

@@ -1024,6 +1024,77 @@ function answerSlippage(question, user) {
   return a;
 }
 
+/* What-if: "what if EQ-0007 fails?" — live blast radius from graph links. */
+function answerWhatIf(c, A, user, hit) {
+  const a = baseAnswer('what_if', user);
+  const r = hit.row, label = typeLabel(hit.module), title = titleOf(hit.module, r);
+  const T = new Date().toISOString().slice(0, 10);
+  cite(a, label, r.code, title);
+  const verb = hit.module === 'nonconformances' ? 'escalates or is rejected'
+    : (hit.module === 'documents' || hit.module === 'policies') ? 'is withdrawn or found outdated'
+    : hit.module === 'suppliers' ? 'fails or is rejected'
+    : 'fails or goes offline';
+  a.facts.push(`What-if — if ${r.code} "${title}" ${verb}:`);
+  const g = graph(label, r.code, user, 2);
+  const linked = g.nodes.filter(n => n.rel !== 'query origin');
+  const acts = linked.filter(n => n.type === 'Action');
+  const ncs = linked.filter(n => ['NC', 'CAPA', 'INC'].includes(n.type));
+  const risks = linked.filter(n => n.type === 'Risk');
+  const audits = linked.filter(n => n.type === 'Audit');
+  const ownActs = q(`SELECT * FROM actions WHERE source_code = ? AND ${OPEN_ACT}`, r.code);
+  const overdue = ownActs.filter(x => x.due_date && x.due_date < T);
+  const critical = ownActs.filter(x => x.priority === 'critical');
+  const impact = linked.length + ownActs.length * 2 + (ncs.length ? 5 : 0) + (critical.length ? 4 : 0);
+  a.facts.push(`Impact rating: ${impact >= 18 ? 'HIGH' : impact >= 8 ? 'MEDIUM' : 'LOW'} (rule-based: ${linked.length} link(s), ${ownActs.length} open action(s), ${ncs.length} quality event(s)).`);
+  a.facts.push(`Blast radius: ${acts.length} action(s) · ${ncs.length} quality event(s) · ${risks.length} risk(s) · ${audits.length} audit(s) directly connected.`);
+  if (ownActs.length) a.facts.push(`Actions on this record: ${ownActs.length} open${overdue.length ? ` (${overdue.length} already overdue)` : ''}${critical.length ? ` · ${critical.length} critical` : ''} — these stall immediately.`);
+  if (hit.module === 'equipment') {
+    const cal = r.next_calibration;
+    a.facts.push(`Equipment: ${r.name} · status ${r.status || 'n/a'}${cal ? ` · next calibration ${cal}` : ''}${r.requires_calibration ? ' · calibration-critical' : ''}.`);
+    if (cal && cal < T) a.findings.push('Already past its calibration date — this impact is happening now, not hypothetical.');
+    let quals = [];
+    try { quals = q('SELECT status FROM equipment_qualifications WHERE equipment_id = ?', r.id); } catch {}
+    const passing = quals.filter(x => x.status === 'passed').length;
+    a.facts.push(`Qualifications on file: ${quals.length}${passing ? ` (${passing} passed)` : ' — no passing qualification to fall back on'}.`);
+    if (!passing) a.findings.push('No passing qualification — there is no documented fallback for this equipment.');
+    const first = (r.name || '').toLowerCase().split(' ')[0];
+    const evts = q("SELECT code, title, status FROM nonconformances WHERE status != 'closed' AND lower(title || ' ' || COALESCE(description,'')) LIKE ?", '%' + first + '%');
+    if (evts.length) a.facts.push(`Open events already referencing it: ${evts.map(x => x.code).join(', ')}.`);
+    a.recommendations.push(`Draft a backup plan: "create an action to qualify a backup for ${r.code}".`);
+  } else if (hit.module === 'suppliers') {
+    a.facts.push(`Supplier: ${r.name} · status ${r.status || 'n/a'} · risk: ${r.risk_level || 'n/a'}.`);
+    const openN = q("SELECT code FROM nonconformances WHERE supplier_id = ? AND status != 'closed'", r.id);
+    if (openN.length) a.facts.push(`Open events with this supplier: ${openN.map(x => x.code).join(', ')} — a failure compounds an existing problem.`);
+    const auditsS = q('SELECT code, status, result FROM audits WHERE supplier_id = ? ORDER BY id DESC LIMIT 3', r.id);
+    if (auditsS.length) a.facts.push(`Audits: ${auditsS.map(x => `${x.code} (${x.status}${x.result ? ', ' + x.result : ''})`).join(' · ')}.`);
+    const evals = q('SELECT period, total_score FROM supplier_evaluations WHERE supplier_id = ? ORDER BY period DESC LIMIT 2', r.id);
+    if (evals.length) a.facts.push(`Recent scores: ${evals.map(e => `${e.period} ${e.total_score}/100`).join(' · ')}.`);
+    if (openN.length + (r.risk_level === 'high' || r.risk_level === 'critical' ? 1 : 0) >= 2) a.findings.push('This supplier is already a known weak point — a stop-ship would hit open events first.');
+    a.recommendations.push(`Ask "compare ${(r.name || '').split(' ')[0]}" to see the trend, and "replace ${r.code}" is worth a contingency action.`);
+  } else if (hit.module === 'risks') {
+    const inh = r.inherent_score ?? (r.inherent_likelihood ? r.inherent_likelihood * r.inherent_severity : null);
+    const res = r.residual_score ?? (r.residual_likelihood ? r.residual_likelihood * r.residual_severity : null);
+    a.facts.push(`Risk ${r.code}: inherent ${inh ?? 'n/a'} → residual ${res ?? 'n/a'} — if it materialises, the residual becomes actual impact.`);
+    if (res && res >= 12) a.findings.push('Residual is still high — the controls in place are not enough if this triggers.');
+    a.recommendations.push(`Ask "watch ${r.code}" to get alerted when anything linked changes.`);
+  } else if (hit.module === 'documents' || hit.module === 'policies') {
+    const dept = r.department;
+    a.facts.push(`Controlled ${hit.module === 'policies' ? 'policy' : 'document'}${dept ? ` — owned process area: ${dept}` : ''}${r.review_date ? ` · review date ${r.review_date}` : ''}.`);
+    if (r.review_date && r.review_date < T) a.findings.push('Review is already overdue — an auditor would treat it as an uncontrolled document today.');
+    const evts = dept ? q("SELECT code FROM nonconformances WHERE status != 'closed' AND department = ? LIMIT 3", dept) : [];
+    if (evts.length) a.facts.push(`Open events in the same area: ${evts.map(x => x.code).join(', ')} — evidence that the process already leaks.`);
+    a.recommendations.push('Check training and process owners who rely on this document before any change.');
+  }
+  const people = [...new Set(linked.filter(n => n.type === 'Person').map(n => n.label))];
+  if (people.length) a.facts.push(`People in the blast radius: ${people.slice(0, 6).join(', ')}.`);
+  if (!linked.length) a.findings.push('No linked records found — the failure would be invisible to the QMS until someone reports it.');
+  a.recommendations.push(`Tap Open connections to walk the chain yourself, and "watch ${r.code}" to get alerts.`);
+  a.actions.push({ kind: 'navigate', label: 'Open connections', link: '/connections', primary: true, auto: false });
+  a.actions.push({ kind: 'navigate', label: `Open ${r.code}`, link: linkFor(label, r.code), primary: false });
+  a.evidence = linked.slice(0, 20).map(n => ({ type: n.type, label: n.label, relation: n.rel, link: n.link || null }));
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1244,6 +1315,11 @@ function askInner(question, user, ctx, depth) {
   // Slippage pre-guide ("what is at risk of slipping?", "what will be late?")
   if (/at risk of (?:slipping|missing|being late)|likely to slip|slip(?:ping)? risk|what will (?:slip|be late)|risk of (?:delay|slippage)|what('s| is) at risk/i.test(question)) {
     return { ...answerSlippage(question, user), question };
+  }
+  // What-if pre-guide ("what if EQ-0007 fails?", "impact of NC-0002")
+  if (/what if|what happens if|impact (?:of|if)|if .*(?:fails|goes down|is rejected|is closed|lost|stops)|simulate/i.test(question)) {
+    const impacted = entityMentions(question);
+    if (impacted.length) return { ...answerWhatIf(c, A, user, impacted[0]), question };
   }
   // Ownership pre-guide ("who owns RSK-0001?", "owner of NC-0002")
   if (/who (?:owns|is responsible for|is the owner of)|owner of|who(?:'s| is) in charge/i.test(question)) {

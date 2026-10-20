@@ -18,6 +18,7 @@ const QUICK = [
   'What changed this week?',
   'Who is overloaded?',
   'What is at risk of slipping?',
+  'What if EQ-0007 fails?',
   'Turn on dark mode'
 ];
 

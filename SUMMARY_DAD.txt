@@ -66,6 +66,7 @@ NEW: Audit-AI — "are we ready for an audit?" gives a readiness score out of 10
 NEW: Pack-AI — "evidence pack RSK-0001" or "flashcard NC-0002" gives a one-page printable evidence pack with every linked record and a Print button.
 NEW: Diary-AI — "what changed this week?" shows a clean change diary: who changed what, field by field, from the audit trail. Arabic too.
 NEW: Owner-AI — "who owns RSK-0001?" gives the owner, their load and their overdue items; "who is overloaded?" ranks everyone's work. Arabic too.
+NEW: Slip-AI — "what is at risk of slipping?" scores every open action 0–100 (overdue days, deadlines, owner load, priority) and names the first to slip. Arabic too.
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

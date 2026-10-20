@@ -53,6 +53,8 @@ const TIME_AR = [
   ['مشغول جداً', 'who is overloaded'], ['مشغول', 'who is busy'], ['من عنده أكثر', 'who has the most work'],
   ['مهدد بالتأخر', 'at risk of slipping'], ['مهدّد بالتأخر', 'at risk of slipping'], ['خطر التأخر', 'risk of slippage'],
   ['ما الذي سيتأخر', 'what will slip'], ['سيتأخر', 'will slip'], ['تأخر التسليم', 'risk of delay'],
+  ['ماذا لو', 'what if'], ['ماذا يحدث إذا', 'what happens if'], ['ماذا يحدث لو', 'what happens if'],
+  ['إذا فشل', 'if it fails'], ['إن فشل', 'if it fails'], ['تأثير', 'impact'], ['محاكاة', 'simulate'],
 ];
 
 function replaceAll(s, pairs) {
@@ -110,6 +112,7 @@ const HEADLINES = {
   workload: 'توزيع العمل:',
   ownership: 'المسؤولية:',
   slippage_risk: 'مهددون بالتأخر:',
+  what_if: 'ماذا لو:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',
@@ -124,6 +127,7 @@ function labelAr(label) {
   let t = String(label || '');
   t = t.replace(/^Open actions board$/, 'فتح لوحة الإجراءات');
   t = t.replace(/^Open activity$/, 'فتح سجل النشاط');
+  t = t.replace(/^Open connections$/, 'فتح خريطة الاتصالات');
   t = t.replace(/^Open Actions$/, 'فتح الإجراءات');
   t = t.replace(/^Open Audits$/, 'فتح التدقيقات');
   t = t.replace(/^Open /, 'فتح ');

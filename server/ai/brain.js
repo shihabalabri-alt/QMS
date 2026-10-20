@@ -793,6 +793,97 @@ function answerEvidencePack(c, A, user, hit) {
   return a;
 }
 
+const NOISE_ACTIONS = new Set(['ai_ask', 'ai_recommend', 'ai_recommendation_approved', 'login', 'login_failed', 'logout', 'job_run', 'rate_limited', 'export', 'search', 'view', 'page_view', 'watch_sweep']);
+
+function diaryRange(question) {
+  const d = new Date();
+  const iso = x => x.toISOString().slice(0, 10);
+  const shift = days => { const x = new Date(d); x.setUTCDate(x.getUTCDate() - days); return x; };
+  let from, to = null, label;
+  const mDays = question.match(/last\s+(\d+)\s+days?/i);
+  if (/yesterday/i.test(question)) { from = iso(shift(1)); to = iso(d); label = 'yesterday'; }
+  else if (/today/i.test(question)) { from = iso(d); label = 'today'; }
+  else if (/last week/i.test(question)) { from = iso(shift(14)); to = iso(shift(7)); label = 'last week'; }
+  else if (/this week/i.test(question)) { from = iso(shift(7)); label = 'last 7 days'; }
+  else if (/last month/i.test(question)) {
+    from = iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 1, 1)));
+    to = iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
+    label = 'last month';
+  } else if (/this month/i.test(question)) { from = iso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))); label = 'this month'; }
+  else if (mDays) { from = iso(shift(Number(mDays[1]))); label = `last ${mDays[1]} days`; }
+  else { from = iso(shift(7)); label = 'last 7 days'; }
+  return { from, to, label };
+}
+
+/* Change diary: "what changed this week?" — real audit_log changes,
+ * noise (logins, AI asks, jobs) filtered out. */
+function answerWhatChanged(question, user) {
+  const a = baseAnswer('what_changed', user);
+  const { from, to, label } = diaryRange(question);
+  const rowsAll = to
+    ? q('SELECT * FROM audit_log WHERE date(created_at) >= date(?) AND date(created_at) < date(?) ORDER BY id DESC LIMIT 1000', from, to)
+    : q('SELECT * FROM audit_log WHERE date(created_at) >= date(?) ORDER BY id DESC LIMIT 1000', from);
+  const rows = rowsAll.filter(r => !NOISE_ACTIONS.has(String(r.action || '').toLowerCase()));
+  const dayOf = s => String(s || '').slice(0, 10);
+  const fmtDay = s => new Date(dayOf(s) + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  const fmtTime = s => String(s || '').replace('T', ' ').slice(0, 16);
+  const people = [...new Set(rows.map(r => r.user_name).filter(n => n && n !== 'System'))];
+  a.facts.push(`Change diary — ${label} (since ${from}): ${rows.length} recorded change(s)${people.length ? ` by ${people.length} ${people.length === 1 ? 'person' : 'people'}` : ''}.`);
+  if (!rows.length) {
+    a.findings.push('No changes recorded in this period — either a quiet stretch or work happening outside the system.');
+    a.recommendations.push('Try "what changed this month" for a wider window.');
+    a.recommendations.push('Tap Open activity for the full filterable trail.');
+    a.actions.push({ kind: 'navigate', label: 'Open activity', link: '/activity', primary: true, auto: false });
+    return a;
+  }
+  const mods = {};
+  for (const r of rows) mods[r.entity_type || 'other'] = (mods[r.entity_type || 'other'] || 0) + 1;
+  const modName = t => (MODULES[t] && MODULES[t].title) || (t === 'ai_watches' ? 'AI watches' : t.replace(/_/g, ' '));
+  const topMods = Object.entries(mods).sort((x, y) => y[1] - x[1]).slice(0, 5);
+  a.facts.push('Busiest areas: ' + topMods.map(([t, n]) => `${modName(t)} (${n})`).join(' · '));
+  const actorCount = {};
+  for (const r of rows) actorCount[r.user_name || 'System'] = (actorCount[r.user_name || 'System'] || 0) + 1;
+  const topActor = Object.entries(actorCount).sort((x, y) => y[1] - x[1])[0];
+  if (topActor) a.facts.push(`Most active: ${topActor[0]} (${topActor[1]} change(s)).`);
+  const days = {};
+  for (const r of rows) days[dayOf(r.created_at)] = (days[dayOf(r.created_at)] || 0) + 1;
+  a.facts.push('Per day: ' + Object.entries(days).sort((x, y) => (x[0] < y[0] ? 1 : -1)).slice(0, 8).map(([d, n]) => `${fmtDay(d)}: ${n}`).join(' · '));
+  const moves = [];
+  for (const r of rows) {
+    if (!r.details) continue;
+    try {
+      const dj = JSON.parse(r.details);
+      let pair = null, field = 'status';
+      if (dj && dj.from !== undefined && dj.to !== undefined) pair = [dj.from, dj.to];
+      else if (dj) {
+        const e = Object.entries(dj).find(([, v]) => v && typeof v === 'object' && 'from' in v && 'to' in v);
+        if (e) { pair = [e[1].from, e[1].to]; field = e[0]; }
+      }
+      if (pair) moves.push({ ...r, fromV: pair[0], toV: pair[1], field });
+    } catch {}
+  }
+  if (moves.length) {
+    a.facts.push(`Field changes (${moves.length}):`);
+    for (const m of moves.slice(0, 6)) a.facts.push(`• ${fmtTime(m.created_at)} — ${m.entity_label || m.entity_type} · ${String(m.field).replace(/_/g, ' ')}: ${m.fromV} → ${m.toV} (${m.user_name || 'System'})`);
+  }
+  a.facts.push(`Latest ${Math.min(rows.length, 10)} change(s):`);
+  for (const r of rows.slice(0, 10)) {
+    a.facts.push(`• ${fmtTime(r.created_at)} — ${r.user_name || 'System'} · ${String(r.action || '').replace(/_/g, ' ')} · ${r.entity_label || r.entity_type || ''}`);
+    const codeM = String(r.entity_label || '').match(/^([A-Z]{2,4}-\d{1,6})/);
+    if (codeM) { try { const hit = findByCode(codeM[1]); if (hit) cite(a, typeLabel(hit.module), hit.row.code, titleOf(hit.module, hit.row)); } catch {} }
+  }
+  a.evidence = rows.slice(0, 50).map(r => ({ at: r.created_at, actor: r.user_name, action: r.action, entity: r.entity_label, type: r.entity_type }));
+  const busiest = Object.entries(days).sort((x, y) => y[1] - x[1])[0];
+  if (busiest) a.findings.push(`Busiest day: ${fmtDay(busiest[0])} with ${busiest[1]} change(s).`);
+  const approvals = moves.filter(m => m.field === 'status' && String(m.toV) === 'approved').length;
+  if (approvals) a.findings.push(`${approvals} approval(s) granted in this period — the decision trail is intact.`);
+  a.recommendations.push('Tap Open activity for the full filterable trail (by person, category, date).');
+  a.recommendations.push('Ask "what changed today" each morning — silent edits show up here first.');
+  a.recommendations.push('Before an audit, print this diary as evidence of active change control.');
+  a.actions.push({ kind: 'navigate', label: 'Open activity', link: '/activity', primary: true, auto: false });
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1001,6 +1092,10 @@ function askInner(question, user, ctx, depth) {
   // Audit-readiness pre-guide ("are we ready for an audit?", "ISO 9001 ready?")
   if (/ready|readiness|prepared|prepar/i.test(question) && /audit|iso|9001|inspection/i.test(question)) {
     return { ...answerAuditReadiness(c, A, user), question };
+  }
+  // Change diary pre-guide ("what changed this week?", "what happened today?")
+  if (/what(?:'s| is| has)? (?:changed|happened)|change ?(?:log|diary)|recent (?:changes|activity)|activity (?:this|last|today)|who changed|timeline/i.test(question)) {
+    return { ...answerWhatChanged(question, user), question };
   }
 
   // Do-actions first: "open / take me to / find ..." executes navigation + record opening.

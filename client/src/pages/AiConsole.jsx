@@ -15,6 +15,7 @@ const QUICK = [
   'Escalate all overdue actions',
   'Are we better than last month?',
   'Are we ready for an audit?',
+  'What changed this week?',
   'Turn on dark mode'
 ];
 

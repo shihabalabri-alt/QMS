@@ -23,7 +23,7 @@ const MODULES_AR = [
   ['المخاطر', 'risks'], ['الخطر', 'risks'], ['خطر', 'risks'],
   ['الموظفين', 'employees'], ['التدريب', 'trainings'], ['الكفاءات', 'competencies'],
   ['المراجعات الإدارية', 'management review'], ['الخريطة', 'connections map'],
-  ['النشاط', 'activity'], ['الإدارة', 'admin'], ['الأمان', 'security'],
+  ['النشاط', 'activity'], ['سجل النشاط', 'recent activity'], ['سجل التغييرات', 'change log'], ['الإدارة', 'admin'], ['الأمان', 'security'],
   ['البحث', 'search'], ['المساعد', 'assistant'],
 ];
 
@@ -45,6 +45,9 @@ const TIME_AR = [
   ['جاهزين', 'ready'], ['جاهزون', 'ready'], ['جاهزة', 'ready'], ['جاهز', 'ready'],
   ['للتدقيق', 'audit'], ['استعداد', 'ready'], ['استعداداً', 'ready'], ['الاستعداد', 'prepared'],
   ['ملف الأدلة', 'evidence pack'], ['ملف أدلة', 'evidence pack'], ['بطاقة أدلة', 'evidence pack'], ['بطاقة', 'flashcard'],
+  ['ماذا تغيّر', 'what changed'], ['ماذا تغير', 'what changed'], ['ماذا حدث', 'what happened'], ['ماذا حصل', 'what happened'],
+  ['التغييرات الأخيرة', 'recent changes'], ['هذا الأسبوع', 'this week'],
+  ['الأسبوع الماضي', 'last week'], ['هذا الشهر', 'this month'], ['الشهر الماضي', 'last month'],
 ];
 
 function replaceAll(s, pairs) {
@@ -98,6 +101,7 @@ const HEADLINES = {
   month_pulse: 'نبض الشهر:',
   audit_readiness: 'جاهزية التدقيق:',
   evidence_pack: 'ملف الأدلة:',
+  what_changed: 'سجل التغييرات:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',

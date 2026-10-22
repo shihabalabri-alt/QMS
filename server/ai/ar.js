@@ -55,6 +55,9 @@ const TIME_AR = [
   ['ما الذي سيتأخر', 'what will slip'], ['سيتأخر', 'will slip'], ['تأخر التسليم', 'risk of delay'],
   ['ماذا لو', 'what if'], ['ماذا يحدث إذا', 'what happens if'], ['ماذا يحدث لو', 'what happens if'],
   ['إذا فشل', 'if it fails'], ['إن فشل', 'if it fails'], ['تأثير', 'impact'], ['محاكاة', 'simulate'],
+  ['لماذا يتكرر', 'why does it keep repeating'], ['لماذا تتكرر', 'why does it keep repeating'],
+  ['لماذا يحدث', 'why does it happen'], ['السبب الجذري', 'root cause'], ['تحليل السبب', 'root cause analysis'],
+  ['عظم السمكة', 'fishbone'],
 ];
 
 function replaceAll(s, pairs) {
@@ -113,6 +116,7 @@ const HEADLINES = {
   ownership: 'المسؤولية:',
   slippage_risk: 'مهددون بالتأخر:',
   what_if: 'ماذا لو:',
+  root_cause: 'تحليل السبب الجذري:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',
@@ -128,6 +132,7 @@ function labelAr(label) {
   t = t.replace(/^Open actions board$/, 'فتح لوحة الإجراءات');
   t = t.replace(/^Open activity$/, 'فتح سجل النشاط');
   t = t.replace(/^Open connections$/, 'فتح خريطة الاتصالات');
+  t = t.replace(/^Open NC & Incidents$/, 'فتح عدم المطابقات');
   t = t.replace(/^Open Actions$/, 'فتح الإجراءات');
   t = t.replace(/^Open Audits$/, 'فتح التدقيقات');
   t = t.replace(/^Open /, 'فتح ');

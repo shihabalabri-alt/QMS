@@ -1095,6 +1095,58 @@ function answerWhatIf(c, A, user, hit) {
   return a;
 }
 
+/* Root-cause assist: "why does this keep happening?" — clusters repeat NCs
+ * by cause category, department and supplier, grounded in live records. */
+function answerRootCause(c, A, user) {
+  const a = baseAnswer('root_cause', user);
+  const ncs = c.nonconformances || [];
+  const openN = ncs.filter(n => n.status !== 'closed');
+  a.facts.push(`Root-cause scan — ${ncs.length} quality event(s), ${openN.length} still open, across ${new Set(ncs.map(n => n.department).filter(Boolean)).size} department(s).`);
+  const cats = A.recurringRootCauses || [];
+  if (cats.length) {
+    a.facts.push('Repeat cause categories:');
+    for (const g of cats.slice(0, 5)) {
+      const sample = g.items.slice(0, 3).map(x => x.code).join(', ');
+      const op = g.items.filter(x => x.status !== 'closed').length;
+      a.facts.push(`• ${g.cat} — ${g.count} event(s)${op ? ` (${op} open)` : ''}: ${sample}`);
+      g.items.slice(0, 2).forEach(x => cite(a, 'NC', x.code, x.title));
+    }
+  } else {
+    a.facts.push('No repeated root-cause category yet — classified events do not form a pattern.');
+  }
+  if (A.recurringDepartments.length) {
+    a.facts.push('Where it repeats:');
+    for (const g of A.recurringDepartments.slice(0, 4)) a.facts.push(`• ${g.dept} — ${g.count} event(s), ${g.openCount} open: ${g.items.slice(0, 3).map(x => x.code).join(', ')}`);
+  }
+  if (A.recurringSuppliers.length) {
+    a.facts.push('Supplier patterns:');
+    for (const g of A.recurringSuppliers.slice(0, 3)) a.facts.push(`• ${g.supplier.name} (${g.supplier.code}) — ${g.count} event(s), ${g.openCount} open · status ${g.supplier.status || 'n/a'}`);
+  }
+  const sev = {};
+  for (const n of ncs) sev[n.severity || 'unrated'] = (sev[n.severity || 'unrated'] || 0) + 1;
+  a.facts.push('Severity mix: ' + Object.entries(sev).map(([k, v]) => `${v} ${k}`).join(' · ') + '.');
+  a.facts.push('Fishbone lens: people · process/method · machine · material · measurement · environment — the categories above sit on these branches.');
+  const unclassified = ncs.filter(n => !n.root_cause_category).length;
+  if (unclassified) a.findings.push(`${unclassified} event(s) have no root-cause category — the pattern cannot be trusted until they are classified.`);
+  const classified = ncs.filter(n => n.root_cause_category).length;
+  if (cats.length && classified) {
+    const top = cats[0];
+    const share = Math.round((top.count / classified) * 100);
+    a.findings.push(`Dominant cause: "${top.cat}" (${top.count} events, ${share}% of classified). Fix the process, not the symptom.`);
+  }
+  if (A.recurringDepartments.length) a.findings.push(`${A.recurringDepartments[0].dept} carries ${A.recurringDepartments[0].count} event(s) — check whether its actions close the same failure mode repeatedly.`);
+  a.recommendations.push('Pick the top category and test one control change on it for 30 days, then re-run this same scan.');
+  a.recommendations.push('Close the loop: for each repeated category, verify the linked actions actually reduced recurrence.');
+  if (A.recurringSuppliers.length) a.recommendations.push(`Ask "compare ${(A.recurringSuppliers[0].supplier.name || '').split(' ')[0]}" to see whether that supplier is improving or degrading.`);
+  a.actions.push({ kind: 'navigate', label: 'Open NC & Incidents', link: '/nonconformances', primary: true, auto: false });
+  a.evidence = [
+    { type: 'categories', data: cats.map(g => ({ cat: g.cat, count: g.count })) },
+    { type: 'departments', data: A.recurringDepartments.map(g => ({ dept: g.dept, count: g.count, open: g.openCount })) },
+    { type: 'suppliers', data: A.recurringSuppliers.map(g => ({ supplier: g.supplier.name, count: g.count, open: g.openCount })) }
+  ];
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1320,6 +1372,10 @@ function askInner(question, user, ctx, depth) {
   if (/what if|what happens if|impact (?:of|if)|if .*(?:fails|goes down|is rejected|is closed|lost|stops)|simulate/i.test(question)) {
     const impacted = entityMentions(question);
     if (impacted.length) return { ...answerWhatIf(c, A, user, impacted[0]), question };
+  }
+  // Root-cause pre-guide ("why does this keep happening?", "root cause analysis")
+  if (/why (?:does|do|is|are|did).*(?:keep (?:having|repeating|happening)|repeat|recur)|root[ -]?cause|fishbone|recur(?:ring)? (?:problem|issue|nc)|why again|what(?:'s| is) causing/i.test(question)) {
+    return { ...answerRootCause(c, A, user), question };
   }
   // Ownership pre-guide ("who owns RSK-0001?", "owner of NC-0002")
   if (/who (?:owns|is responsible for|is the owner of)|owner of|who(?:'s| is) in charge/i.test(question)) {

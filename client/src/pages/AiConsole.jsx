@@ -20,6 +20,7 @@ const QUICK = [
   'What is at risk of slipping?',
   'What if EQ-0007 fails?',
   'Why does this keep happening?',
+  'Prep me for the management review',
   'Turn on dark mode'
 ];
 

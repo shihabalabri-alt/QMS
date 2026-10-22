@@ -68,6 +68,8 @@ NEW: Diary-AI — "what changed this week?" shows a clean change diary: who chan
 NEW: Owner-AI — "who owns RSK-0001?" gives the owner, their load and their overdue items; "who is overloaded?" ranks everyone's work. Arabic too.
 NEW: Slip-AI — "what is at risk of slipping?" scores every open action 0–100 (overdue days, deadlines, owner load, priority) and names the first to slip. Arabic too.
 NEW: What-if-AI — "what if EQ-0007 fails?" simulates the blast radius: linked actions, NCs, risks, audits, people and a HIGH/MEDIUM/LOW impact rating. Arabic too.
+NEW: Cause-AI — "why does this keep happening?" clusters repeat NCs by cause category, department and supplier, with a fishbone lens. Arabic too.
+NEW: Meeting-AI — "prep me for tomorrow's management review" gives a one-page brief: headline score, numbers, decisions needed, Q&A cheat sheet and top talking points. Arabic too.
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

@@ -58,6 +58,8 @@ const TIME_AR = [
   ['لماذا يتكرر', 'why does it keep repeating'], ['لماذا تتكرر', 'why does it keep repeating'],
   ['لماذا يحدث', 'why does it happen'], ['السبب الجذري', 'root cause'], ['تحليل السبب', 'root cause analysis'],
   ['عظم السمكة', 'fishbone'],
+  ['جهزني لـ', 'prep me for'], ['جهزني ل', 'prep me for'], ['حضرني لـ', 'prep me for'],
+  ['تحضير الاجتماع', 'meeting prep'], ['جدول أعمال', 'agenda'], ['اجتماع المراجعة', 'management review meeting'],
 ];
 
 function replaceAll(s, pairs) {
@@ -117,6 +119,7 @@ const HEADLINES = {
   slippage_risk: 'مهددون بالتأخر:',
   what_if: 'ماذا لو:',
   root_cause: 'تحليل السبب الجذري:',
+  meeting_prep: 'تحضير الاجتماع:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',
@@ -133,6 +136,7 @@ function labelAr(label) {
   t = t.replace(/^Open activity$/, 'فتح سجل النشاط');
   t = t.replace(/^Open connections$/, 'فتح خريطة الاتصالات');
   t = t.replace(/^Open NC & Incidents$/, 'فتح عدم المطابقات');
+  t = t.replace(/^Open management review draft$/, 'فتح مسودة المراجعة الإدارية');
   t = t.replace(/^Open Actions$/, 'فتح الإجراءات');
   t = t.replace(/^Open Audits$/, 'فتح التدقيقات');
   t = t.replace(/^Open /, 'فتح ');

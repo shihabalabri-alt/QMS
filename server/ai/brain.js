@@ -1147,6 +1147,66 @@ function answerRootCause(c, A, user) {
   return a;
 }
 
+/* Meeting prep: "prep me for tomorrow's management review" — one page:
+ * headline, numbers, decisions, Q&A cheat sheet, talking points. */
+function answerMeetingPrep(c, A, user, question) {
+  const a = baseAnswer('meeting_prep', user);
+  a.scope = 'one-page meeting brief (live data)';
+  const T = new Date().toISOString().slice(0, 10);
+  const n = x => (x || []).length;
+  const tomorrow = /tomorrow/i.test(question);
+  const day = new Date();
+  let when = 'today';
+  const wd = /(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.exec(question);
+  if (wd) {
+    const target = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(wd[1].toLowerCase());
+    const diff = (target - day.getDay() + 7) % 7 || 7;
+    day.setDate(day.getDate() + diff);
+    when = `${wd[1][0].toUpperCase() + wd[1].slice(1).toLowerCase()} (${day.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })})`;
+  } else if (tomorrow) {
+    day.setDate(day.getDate() + 1);
+    when = `tomorrow (${day.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })})`;
+  }
+  const overdue = A.overdueActions, crit = overdue.filter(x => x.priority === 'critical');
+  const nonComp = A.complianceGaps.filter(g => g.status === 'non_compliant');
+  const calOver = A.calibrationDue.filter(e => e.next_calibration && e.next_calibration < T);
+  const docsOver = A.docsForReview.filter(d => d.review_date && d.review_date < T);
+  const readiness = answerAuditReadiness(c, A, user).facts[0].replace('Audit-readiness score: ', '');
+  a.facts.push(`Meeting prep — ${when}. Suggested run time: 30 minutes. One page, live numbers.`);
+  a.facts.push(`1) Headline: ${readiness}`);
+  a.facts.push(`2) Numbers: ${n(overdue)} overdue action(s) (${crit.length} critical) · ${n(A.dueSoonActions)} due ≤7d · ${n(A.openNCs)} open NC(s) · ${n(A.highResidualRisks)} high-residual risk(s).`);
+  a.facts.push(`3) Controls: ${n(docsOver)} document review(s) overdue · ${n(A.policiesForReview)} policy due · ${n(calOver)} calibration(s) overdue · ${n(nonComp)} non-compliant · ${n(A.kpisOffTarget)}/${n(A.kpis)} KPI(s) off target.`);
+  const inReviewPolicies = q("SELECT code FROM policies WHERE status = 'in_review'");
+  const inReviewDocs = q("SELECT code FROM documents WHERE status = 'in_review'");
+  const dec = [];
+  if (inReviewPolicies.length) dec.push(`${inReviewPolicies.map(x => x.code).join(', ')} awaiting approval (policies)`);
+  if (inReviewDocs.length) dec.push(`${inReviewDocs.map(x => x.code).join(', ')} awaiting approval (documents)`);
+  if (crit.length) dec.push(`escalation on ${crit.slice(0, 2).map(x => x.code).join(', ')}`);
+  if (nonComp.length) dec.push(`gap-closure owners for ${nonComp.slice(0, 2).map(g => g.code).join(', ')}`);
+  a.facts.push('4) Decisions needed: ' + (dec.length ? dec.join(' · ') : 'none pending — use the slot for prevention work') + '.');
+  const rc = (A.recurringRootCauses && A.recurringRootCauses[0]) || null;
+  const qa = [
+    ['How many overdue actions?', `${n(overdue)} (${crit.length} critical, ${overdue.filter(x => x.owner_id === user.id).length} mine)`],
+    ['Are we audit-ready?', readiness],
+    ['Where do repeat problems come from?', rc ? `${rc.cat} — ${rc.count} event(s)` : 'no repeat category identified'],
+    ['First thing to slip?', A.attention[0] ? `${A.attention[0].code} — ${A.attention[0].title}` : 'nothing flagged']
+  ];
+  a.facts.push('5) Questions you will be asked — answers ready:');
+  qa.forEach(([q, ans]) => a.facts.push(`• "${q}" → ${ans}`));
+  const top = A.attention.slice(0, 4);
+  if (top.length) {
+    a.facts.push('6) Talking points (top 4 by risk score):');
+    for (const it of top) { a.facts.push(`• ${it.code} "${it.title}" — ${it.why}`); cite(a, it.type, it.code, it.title); }
+    a.evidence = A.attention.slice(0, 10);
+  }
+  a.findings.push(`Bring one evidence pack per talking point — say "evidence pack ${top[0] ? top[0].code : 'RSK-0001'}" to print one.`);
+  a.recommendations.push('Open with the audit-readiness line, then ask for the decisions listed above.');
+  a.recommendations.push('End with owners and dates for every open item — no meeting without assignments.');
+  a.actions.push({ kind: 'navigate', label: 'Open management review draft', link: '/mgmt-reviews', primary: true, auto: false });
+  a.actions.push({ kind: 'navigate', label: 'Open actions board', link: '/actions?status=open', primary: false, auto: false });
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1376,6 +1436,10 @@ function askInner(question, user, ctx, depth) {
   // Root-cause pre-guide ("why does this keep happening?", "root cause analysis")
   if (/why (?:does|do|is|are|did).*(?:keep (?:having|repeating|happening)|repeat|recur)|root[ -]?cause|fishbone|recur(?:ring)? (?:problem|issue|nc)|why again|what(?:'s| is) causing/i.test(question)) {
     return { ...answerRootCause(c, A, user), question };
+  }
+  // Meeting prep pre-guide ("prep me for tomorrow's management review")
+  if (/(?:prep|prepare) (?:me|us) for|meeting (?:prep|brief|agenda)|agenda for|what should (?:i|we) (?:say|present|raise)|management review (?:prep|brief)/i.test(question)) {
+    return { ...answerMeetingPrep(c, A, user, question), question };
   }
   // Ownership pre-guide ("who owns RSK-0001?", "owner of NC-0002")
   if (/who (?:owns|is responsible for|is the owner of)|owner of|who(?:'s| is) in charge/i.test(question)) {

@@ -1308,6 +1308,111 @@ function answerCompetency(c, A, user) {
   return a;
 }
 
+/* Data-health check: "what's missing from our records?" — grouped gaps. */
+function answerDataHealth(c, A, user) {
+  const a = baseAnswer('data_health', user);
+  const missing = A.missingInfo || [];
+  const gapCount = missing.reduce((t, m) => t + m.gaps.length, 0);
+  const byType = {};
+  for (const m of missing) (byType[m.type] = byType[m.type] || []).push(m);
+  const types = Object.entries(byType).sort((x, y) => y[1].length - x[1].length);
+  a.facts.push(`Data-health check — ${missing.length} record(s) with ${gapCount} missing field(s), across ${types.length} module(s).`);
+  const gapTotals = {};
+  for (const m of missing) for (const g of m.gaps) gapTotals[g] = (gapTotals[g] || 0) + 1;
+  for (const [type, list] of types) {
+    const own = {};
+    for (const m of list) for (const g of m.gaps) own[g] = (own[g] || 0) + 1;
+    const topGap = Object.entries(own).sort((x, y) => y[1] - x[1])[0];
+    a.facts.push(`• ${typeLabel(type)} — ${list.length} record(s), mostly "${topGap[0]}" (${topGap[1]})`);
+  }
+  const topGaps = Object.entries(gapTotals).sort((x, y) => y[1] - x[1]).slice(0, 3);
+  if (topGaps.length) a.facts.push(`Top gaps: ${topGaps.map(([g, n]) => `${g} (${n})`).join(' · ')}.`);
+  const worst = [...missing].sort((x, y) => y.gaps.length - x.gaps.length).slice(0, 5);
+  if (worst.length) {
+    a.facts.push('Worst records:');
+    for (const m of worst) { a.facts.push(`• ${m.code} "${m.title}" — ${m.gaps.join('; ')}`); cite(a, typeLabel(m.type), m.code, m.title); }
+  }
+  const actMissing = byType.actions || [];
+  const supMissing = byType.suppliers || [];
+  const docMissing = byType.documents || [];
+  const ncMissing = byType.nonconformances || [];
+  const riskMissing = byType.risks || [];
+  if (actMissing.length) a.findings.push(`${actMissing.length} open action(s) have no due date — they can slip silently until someone asks.`);
+  if (supMissing.length) a.findings.push(`${supMissing.length} supplier record(s) are approved without evidence (never evaluated or no qualification date) — a supplier-control finding.`);
+  if (docMissing.length) a.findings.push(`${docMissing.length} approved document(s) have no review date — auditors treat them as uncontrolled.`);
+  if (ncMissing.length) a.findings.push(`${ncMissing.length} open quality event(s) miss root cause or containment — the investigation cannot be audited yet.`);
+  if (riskMissing.length) a.findings.push(`${riskMissing.length} risk(s) lack controls or a review date — risk treatment is unproven.`);
+  if (!missing.length) a.findings.push('No missing fields found — data hygiene is clean.');
+  if (actMissing.length) a.recommendations.push('Clear the biggest bucket first: open the actions board and set due dates on every open action.');
+  if (supMissing.length || docMissing.length) a.recommendations.push('Then close the approval-evidence gaps: supplier evaluations and document review dates.');
+  if (ncMissing.length || riskMissing.length) a.recommendations.push(`Write the missing root cause/containment (${ncMissing.length}) and risk controls (${riskMissing.length}) before the next audit.`);
+  a.recommendations.push('Re-run this same check after cleanup — the count should drop to zero.');
+  a.actions.push({ kind: 'navigate', label: 'Open actions board', link: '/actions?status=open', primary: true, auto: false });
+  if (docMissing.length) a.actions.push({ kind: 'navigate', label: 'Open documents', link: '/documents', primary: false, auto: false });
+  else if (supMissing.length) a.actions.push({ kind: 'navigate', label: 'Open suppliers', link: '/suppliers', primary: false, auto: false });
+  a.evidence = worst.map(m => ({ type: typeLabel(m.type), code: m.code, title: m.title, gaps: m.gaps }));
+  return a;
+}
+
+/* Supplier dependency radar: "are we too dependent on one supplier?" */
+function answerSupplierDependency(c, A, user) {
+  const a = baseAnswer('supplier_dependency', user);
+  const T = new Date().toISOString().slice(0, 10);
+  const sup = (c.suppliers || []).filter(s => ['approved', 'conditional'].includes(s.status));
+  const byCat = {};
+  for (const s of sup) { const cat = s.category || 'Uncategorised'; (byCat[cat] = byCat[cat] || []).push(s); }
+  const cats = Object.entries(byCat);
+  const solo = cats.filter(([, list]) => list.length === 1).map(([cat, list]) => ({ cat, s: list[0] }));
+  const openNCs = id => (c.nonconformances || []).filter(n => n.supplier_id === id && n.status !== 'closed');
+  const openInc = id => (c.supplier_incidents || []).filter(i => i.supplier_id === id && i.status !== 'closed');
+  const evalsFor = id => (c.supplier_evals || []).filter(e => e.supplier_id === id).sort((x, y) => (y.period || '').localeCompare(x.period || ''));
+  const auditsFor = id => (c.audits || []).filter(x => x.supplier_id === id);
+  const rank = sup.map(s => {
+    const ncs = openNCs(s.id), inc = openInc(s.id), ev = evalsFor(s.id), au = auditsFor(s.id);
+    let score = 0; const why = [];
+    if (['high', 'critical'].includes(s.risk_level)) { score += 5; why.push(`${s.risk_level} risk`); }
+    if (s.status === 'conditional') { score += 4; why.push('conditional status'); }
+    if (ncs.length) { score += ncs.length * 2; why.push(`${ncs.length} open NC`); }
+    if (inc.length) { score += inc.length * 2; why.push(`${inc.length} open incident`); }
+    if (!ev.length) { score += 3; why.push('never evaluated'); }
+    if (!s.qualification_date) { score += 2; why.push('no qualification date'); }
+    if (!au.length) { score += 1; why.push('never audited'); }
+    if (solo.some(x => x.s.id === s.id)) { score += 3; why.push('sole source'); }
+    if (s.next_audit && s.next_audit < T) { score += 2; why.push(`audit overdue ${s.next_audit}`); }
+    return { s, ncs, inc, ev, au, score, why, lastScore: ev[0] ? ev[0].total_score : null };
+  }).sort((x, y) => y.score - x.score);
+
+  a.facts.push(`Supplier dependency radar — ${sup.length} active supplier(s) across ${cats.length} categor(ies); ${solo.length} categor(ies) have only one supplier.`);
+  if (solo.length) {
+    a.facts.push('Sole-source categories (no qualified backup):');
+    for (const x of solo.slice(0, 6)) a.facts.push(`• ${x.cat} — ${x.s.name} (${x.s.code}, ${x.s.status}, ${x.s.risk_level || 'n/a'} risk)`);
+  }
+  a.facts.push('Highest exposure:');
+  for (const x of rank.slice(0, 4)) {
+    a.facts.push(`• ${x.s.name} (${x.s.code}) — exposure ${x.score} pts · ${x.why.join(', ') || 'no flags'}${x.lastScore != null ? ` · last evaluation ${x.lastScore}/100` : ''}`);
+    cite(a, 'Supplier', x.s.code, x.s.name);
+  }
+  const ncAll = (c.nonconformances || []).filter(n => n.supplier_id && n.status !== 'closed');
+  const incAll = (c.supplier_incidents || []).filter(i => i.status !== 'closed');
+  a.facts.push(`Supplier events: ${ncAll.length} open NC(s) · ${incAll.length} open incident(s).`);
+  const top = rank[0];
+  if (solo.length === cats.length && cats.length) a.findings.push(`Every active category has exactly one supplier — a single failure stops that supply line.`);
+  if (top && top.score >= 8) a.findings.push(`Weakest link: ${top.s.name} — ${top.why.join(', ')}.`);
+  if (sup.filter(s => s.status === 'conditional').length) a.findings.push(`${sup.filter(s => s.status === 'conditional').length} supplier(s) are already conditional — the dependency is degraded today.`);
+  if (sup.filter(s => !evalsFor(s.id).length).length) a.findings.push(`${sup.filter(s => !evalsFor(s.id).length).length} active supplier(s) have never been evaluated.`);
+  if (!sup.length) a.findings.push('No approved or conditional suppliers on file.');
+  if (solo.length) a.recommendations.push(`Qualify a second source for ${solo[0].cat}: say "create an action to qualify a backup supplier for ${solo[0].cat}".`);
+  if (top) a.recommendations.push(`Ask "what if ${top.s.code} fails?" for the blast radius, and "compare ${(top.s.name || '').split(' ')[0]}" for the trend.`);
+  a.actions.push({ kind: 'navigate', label: 'Open suppliers', link: '/suppliers', primary: true, auto: false });
+  a.actions.push({ kind: 'navigate', label: 'Open risk register', link: '/risks', primary: false, auto: false });
+  a.evidence = rank.slice(0, 12).map(x => ({
+    type: 'Supplier', code: x.s.code, name: x.s.name, category: x.s.category, status: x.s.status,
+    risk: x.s.risk_level, exposure: x.score, openNCs: x.ncs.length, openIncidents: x.inc.length,
+    lastEvaluation: x.lastScore, flags: x.why
+  }));
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1549,6 +1654,14 @@ function askInner(question, user, ctx, depth) {
   // Competency radar pre-guide ("who isn't qualified?", "training gaps")
   if (/who(?:'s| is| are)?\s+(?:not\s+)?(?:qualified|competent|trained)\b|who (?:isn't|aren't) (?:qualified|competent|trained)|who needs training|competenc\w*|skills? gap|training gap|qualification gap|(?:expired|expiring) (?:training|certificat\w*|qualification\w*)|(?:training|competenc\w*|qualification\w*|certificat\w*) [^?.]*expir\w*|\bnot qualified\b|\bnot competent\b/i.test(question)) {
     return { ...answerCompetency(c, A, user), question };
+  }
+  // Data-health pre-guide ("what's missing from our records?")
+  if (/data (?:health|quality|hygiene|completeness)|missing (?:fields?|data|info|information)|incomplete (?:records?|data)|what(?:'s| is) missing (?:from|in) (?:our|the) (?:records?|data|files?|qms)|records? (?:missing|without|incomplete)|clean ?up (?:the )?(?:data|records)|audit file/i.test(question)) {
+    return { ...answerDataHealth(c, A, user), question };
+  }
+  // Supplier dependency pre-guide ("are we too dependent on one supplier?")
+  if (/supplier (?:dependenc|concentration|exposure|risk|redundan)|sole[- ]source|single[- ]source|too dependent on|only one supplier|backup supplier|supply risk|which suppliers? (?:are|is)? ?(?:risky|single)/i.test(question)) {
+    return { ...answerSupplierDependency(c, A, user), question };
   }
   // Ownership pre-guide ("who owns RSK-0001?", "owner of NC-0002")
   if (/who (?:owns|is responsible for|is the owner of)|owner of|who(?:'s| is) in charge/i.test(question)) {

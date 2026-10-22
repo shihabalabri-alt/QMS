@@ -22,6 +22,8 @@ const QUICK = [
   'Why does this keep happening?',
   'Prep me for the management review',
   'Who is not qualified?',
+  'What is missing from our records?',
+  'Are we too dependent on one supplier?',
   'Turn on dark mode'
 ];
 

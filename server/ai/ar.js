@@ -64,6 +64,11 @@ const TIME_AR = [
   ['فجوة التدريب', 'training gap'], ['فجوة المهارات', 'skills gap'], ['انتهاء صلاحية التدريب', 'expired training'],
   ['المؤهلات المنتهية', 'expired qualifications'], ['مؤهلات منتهية', 'expired qualifications'],
   ['المؤهلات', 'qualifications'],
+  ['صحة البيانات', 'data health'], ['البيانات الناقصة', 'missing data'], ['معلومات ناقصة', 'missing information'],
+  ['سجلات غير مكتملة', 'incomplete records'], ['تنظيف البيانات', 'data cleanup'], ['ما هو الناقص', 'what is missing'],
+  ['الاعتماد على الموردين', 'supplier dependency'], ['الاعتماد على المورد', 'supplier dependency'],
+  ['مورد واحد', 'only one supplier'], ['مصدر وحيد', 'single source'], ['مخاطر الموردين', 'supplier risk'],
+  ['مورد بديل', 'backup supplier'],
 ];
 
 function replaceAll(s, pairs) {
@@ -125,6 +130,8 @@ const HEADLINES = {
   root_cause: 'تحليل السبب الجذري:',
   meeting_prep: 'تحضير الاجتماع:',
   competency: 'رادار الكفاءات:',
+  data_health: 'فحص صحة البيانات:',
+  supplier_dependency: 'رادار اعتماد الموردين:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',
@@ -144,6 +151,9 @@ function labelAr(label) {
   t = t.replace(/^Open management review draft$/, 'فتح مسودة المراجعة الإدارية');
   t = t.replace(/^Open competencies$/, 'فتح الكفاءات');
   t = t.replace(/^Open training$/, 'فتح التدريب');
+  t = t.replace(/^Open documents$/, 'فتح الوثائق');
+  t = t.replace(/^Open suppliers$/, 'فتح الموردين');
+  t = t.replace(/^Open risk register$/, 'فتح سجل المخاطر');
   t = t.replace(/^Open Actions$/, 'فتح الإجراءات');
   t = t.replace(/^Open Audits$/, 'فتح التدقيقات');
   t = t.replace(/^Open /, 'فتح ');

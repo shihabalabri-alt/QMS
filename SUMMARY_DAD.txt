@@ -71,6 +71,8 @@ NEW: What-if-AI — "what if EQ-0007 fails?" simulates the blast radius: linked 
 NEW: Cause-AI — "why does this keep happening?" clusters repeat NCs by cause category, department and supplier, with a fishbone lens. Arabic too.
 NEW: Meeting-AI — "prep me for tomorrow's management review" gives a one-page brief: headline score, numbers, decisions needed, Q&A cheat sheet and top talking points. Arabic too.
 NEW: Competency-AI — "who isn't qualified?" shows coverage %, below-level assessments, missing files, expiries and overdue training, by person and department. Employees only see their own file. Arabic too.
+NEW: Data-health-AI — "what's missing from our records?" lists incomplete records by module (no due date, no root cause, no controls, no review date) and the worst offenders. Arabic too.
+NEW: Supply-AI — "are we too dependent on one supplier?" finds sole-source categories, ranks suppliers by exposure and names the weakest link. Arabic too.
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

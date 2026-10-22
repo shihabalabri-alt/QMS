@@ -21,6 +21,7 @@ const QUICK = [
   'What if EQ-0007 fails?',
   'Why does this keep happening?',
   'Prep me for the management review',
+  'Who is not qualified?',
   'Turn on dark mode'
 ];
 

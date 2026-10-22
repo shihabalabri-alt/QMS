@@ -60,6 +60,10 @@ const TIME_AR = [
   ['عظم السمكة', 'fishbone'],
   ['جهزني لـ', 'prep me for'], ['جهزني ل', 'prep me for'], ['حضرني لـ', 'prep me for'],
   ['تحضير الاجتماع', 'meeting prep'], ['جدول أعمال', 'agenda'], ['اجتماع المراجعة', 'management review meeting'],
+  ['من غير مؤهل', 'who is not qualified'], ['غير مؤهل', 'not qualified'], ['من يحتاج تدريب', 'who needs training'],
+  ['فجوة التدريب', 'training gap'], ['فجوة المهارات', 'skills gap'], ['انتهاء صلاحية التدريب', 'expired training'],
+  ['المؤهلات المنتهية', 'expired qualifications'], ['مؤهلات منتهية', 'expired qualifications'],
+  ['المؤهلات', 'qualifications'],
 ];
 
 function replaceAll(s, pairs) {
@@ -120,6 +124,7 @@ const HEADLINES = {
   what_if: 'ماذا لو:',
   root_cause: 'تحليل السبب الجذري:',
   meeting_prep: 'تحضير الاجتماع:',
+  competency: 'رادار الكفاءات:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',
@@ -137,6 +142,8 @@ function labelAr(label) {
   t = t.replace(/^Open connections$/, 'فتح خريطة الاتصالات');
   t = t.replace(/^Open NC & Incidents$/, 'فتح عدم المطابقات');
   t = t.replace(/^Open management review draft$/, 'فتح مسودة المراجعة الإدارية');
+  t = t.replace(/^Open competencies$/, 'فتح الكفاءات');
+  t = t.replace(/^Open training$/, 'فتح التدريب');
   t = t.replace(/^Open Actions$/, 'فتح الإجراءات');
   t = t.replace(/^Open Audits$/, 'فتح التدقيقات');
   t = t.replace(/^Open /, 'فتح ');

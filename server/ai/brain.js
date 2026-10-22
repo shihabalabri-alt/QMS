@@ -233,6 +233,7 @@ function linkFor(type, code) {
     case 'Employee': return resolve('employees', 'employees');
     case 'Design review': return resolve('design_reviews', 'design');
     case 'Training': return resolve('trainings', 'trainings');
+    case 'Competency': return resolve('competencies', 'competencies');
     case 'Mgmt review': return resolve('management_reviews', 'mgmt-reviews');
     default: return null;
   }
@@ -1207,6 +1208,106 @@ function answerMeetingPrep(c, A, user, question) {
   return a;
 }
 
+/* Competency radar: "who isn't qualified?" — coverage, below-level assessments,
+ * expiries, missing files and training gaps, filtered for employee self-view. */
+function answerCompetency(c, A, user) {
+  const a = baseAnswer('competency', user);
+  const T = new Date().toISOString().slice(0, 10);
+  const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+  const active = (c.employees || []).filter(e => (e.status || 'active') === 'active');
+  const asmts = c.assessments || [];
+  const nameOf = id => (active.find(e => e.id === id) || {}).name || `employee ${id}`;
+  const citeOne = x => cite(a, 'Competency', x.code, `${x.employee_name} — ${x.competency_name}`);
+
+  const selfEmp = user.role === 'employee'
+    ? active.find(e => e.user_id === user.id || (e.email && user.email && e.email.toLowerCase() === String(user.email).toLowerCase()) || e.name === user.name)
+    : null;
+  if (user.role === 'employee') {
+    if (!selfEmp) {
+      a.facts.push('No employee record is linked to your account, so there is no competency file to show.');
+      a.findings.push('Ask your quality manager to link your user account to your employee record.');
+      a.actions.push({ kind: 'navigate', label: 'Open competencies', link: '/competencies', primary: true, auto: false });
+      return a;
+    }
+    const mine = asmts.filter(x => x.employee_id === selfEmp.id);
+    a.facts.push(`Your competency record — ${selfEmp.name} (${selfEmp.code}, ${selfEmp.department || 'no department'}) · ${mine.length} assessment(s) on file.`);
+    for (const x of mine.slice(0, 10)) {
+      const flag = x.expiry_date && x.expiry_date < T ? ' (EXPIRED)' : (x.level != null && x.required_level != null && x.level < x.required_level ? ' (BELOW LEVEL)' : '');
+      a.facts.push(`• ${x.competency_name}: level ${x.level ?? '?'}${x.required_level != null ? ` / required ${x.required_level}` : ''}${x.expiry_date ? ` · expires ${x.expiry_date}` : ''}${flag}`);
+      citeOne(x);
+    }
+    const below = mine.filter(x => x.level != null && x.required_level != null && x.level < x.required_level);
+    const expired = mine.filter(x => x.expiry_date && x.expiry_date < T);
+    if (expired.length) a.findings.push(`${expired.length} of your qualification(s) are expired — do not sign off independent work until renewed.`);
+    if (below.length) a.findings.push(`${below.length} competency(ies) are below the required level — ask for a development plan.`);
+    if (!mine.length) a.findings.push('No assessments on file — your training evidence is missing.');
+    if (!expired.length && !below.length && mine.length) a.findings.push('Everything current and at level — nothing to fix.');
+    a.actions.push({ kind: 'navigate', label: 'Open competencies', link: '/competencies', primary: true, auto: false });
+    return a;
+  }
+
+  const people = active;
+  const expired = asmts.filter(x => x.expiry_date && x.expiry_date < T);
+  const soon = asmts.filter(x => x.expiry_date && x.expiry_date >= T && x.expiry_date <= in30);
+  const under = asmts.filter(x => x.level != null && x.required_level != null && x.level < x.required_level);
+  const covered = people.filter(e => asmts.some(x => x.employee_id === e.id && (!x.expiry_date || x.expiry_date >= T)));
+  const noEv = people.filter(e => !asmts.some(x => x.employee_id === e.id));
+  const coverage = people.length ? Math.round((covered.length / people.length) * 100) : 100;
+
+  a.facts.push(`Competency radar — ${people.length} active employee(s), ${asmts.length} assessment(s), ${under.length} below required level, ${expired.length} expired.`);
+  a.facts.push(`Coverage: ${coverage}% (${covered.length}/${people.length} people have at least one current assessment).`);
+  if (under.length) {
+    a.facts.push('Below required level:');
+    for (const x of under.slice(0, 5)) {
+      a.facts.push(`• ${x.employee_name} — ${x.competency_name}: level ${x.level} vs required ${x.required_level}`);
+      citeOne(x);
+    }
+  }
+  if (expired.length) {
+    a.facts.push('Expired:');
+    for (const x of expired.slice(0, 5)) { a.facts.push(`• ${x.employee_name} — ${x.competency_name}, expired ${x.expiry_date}`); citeOne(x); }
+  }
+  if (soon.length) {
+    a.facts.push('Expiring within 30 days:');
+    for (const x of soon.slice(0, 5)) { a.facts.push(`• ${x.employee_name} — ${x.competency_name}, expires ${x.expiry_date}`); citeOne(x); }
+  }
+  if (noEv.length) a.facts.push(`No competency evidence on file: ${noEv.slice(0, 5).map(e => `${e.name} (${e.code}, ${e.department || 'no department'})`).join(' · ')}.`);
+
+  const tr = c.trainings || [];
+  const tp = c.training_participants || [];
+  const overdueTr = tr.filter(t => t.status === 'scheduled' && t.scheduled_date && t.scheduled_date < T);
+  const invited = tp.filter(p => p.status === 'invited');
+  if (overdueTr.length || invited.length) {
+    const invNames = [...new Set(invited.map(p => nameOf(p.employee_id)))].slice(0, 3);
+    a.facts.push(`Training gaps: ${overdueTr.length} session(s) past their scheduled date${overdueTr.length ? ` (${overdueTr.slice(0, 2).map(t => t.code).join(', ')})` : ''} · ${invited.length} booking(s) still invited${invNames.length ? ` (${invNames.join(', ')})` : ''}.`);
+  }
+
+  const gapIds = new Set([...under.map(x => x.employee_id), ...expired.map(x => x.employee_id), ...noEv.map(e => e.id)]);
+  const byDept = {};
+  for (const e of people.filter(e => gapIds.has(e.id))) byDept[e.department || 'Unassigned'] = (byDept[e.department || 'Unassigned'] || 0) + 1;
+  const deptRows = Object.entries(byDept).sort((x, y) => y[1] - x[1]).slice(0, 3);
+  if (deptRows.length) a.facts.push(`Department lens: ${deptRows.map(([d, n]) => `${d} ${n}`).join(' · ')}.`);
+
+  if (expired.length) a.findings.push(`${expired.length} expired qualification(s) — suspend independent work until renewed.`);
+  if (under.length) a.findings.push(`${under.length} assessment(s) below the required level — development plans needed before sign-off.`);
+  if (noEv.length) a.findings.push(`${noEv.length} active employee(s) have no competency evidence — an auditor will ask for their training file.`);
+  if (overdueTr.length) a.findings.push(`${overdueTr.length} training session(s) are past their date — attendance cannot be proven.`);
+  if (!expired.length && !under.length && !noEv.length && !overdueTr.length) a.findings.push('No competency gaps found — all active staff are current and at level.');
+
+  if (under.length) a.recommendations.push(`Raise the below-level assessments first: ${under.slice(0, 3).map(x => `${x.employee_name} (${x.competency_name})`).join(', ')}.`);
+  if (overdueTr.length || invited.length) a.recommendations.push(`Close out the ${overdueTr.length} overdue session(s) and confirm the ${invited.length} invited participant(s).`);
+  if (noEv.length) a.recommendations.push(`Create evidence for ${noEv.slice(0, 2).map(e => e.name).join(', ')} — say "create an action to assess ${noEv[0].name}".`);
+
+  a.actions.push({ kind: 'navigate', label: 'Open competencies', link: '/competencies', primary: true, auto: false });
+  a.actions.push({ kind: 'navigate', label: 'Open training', link: '/trainings', primary: false, auto: false });
+  a.evidence = [...under, ...expired, ...soon].slice(0, 20).map(x => ({
+    type: 'Assessment', code: x.code, employee: x.employee_name, competency: x.competency_name,
+    level: x.level, required: x.required_level, expires: x.expiry_date || null
+  }));
+  if (!a.evidence.length) a.evidence = noEv.slice(0, 10).map(e => ({ type: 'Employee', code: e.code, employee: e.name, gap: 'no competency evidence' }));
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1440,6 +1541,14 @@ function askInner(question, user, ctx, depth) {
   // Meeting prep pre-guide ("prep me for tomorrow's management review")
   if (/(?:prep|prepare) (?:me|us) for|meeting (?:prep|brief|agenda)|agenda for|what should (?:i|we) (?:say|present|raise)|management review (?:prep|brief)/i.test(question)) {
     return { ...answerMeetingPrep(c, A, user, question), question };
+  }
+  // Calibration due pre-guide ("what calibration is due?", "what is overdue for calibration?")
+  if (/calibrat\w*/i.test(question) && /due|overdue|expir|schedule|when|coming up/i.test(question)) {
+    return { ...answerOverdue(c, A, user, 'calibration'), question };
+  }
+  // Competency radar pre-guide ("who isn't qualified?", "training gaps")
+  if (/who(?:'s| is| are)?\s+(?:not\s+)?(?:qualified|competent|trained)\b|who (?:isn't|aren't) (?:qualified|competent|trained)|who needs training|competenc\w*|skills? gap|training gap|qualification gap|(?:expired|expiring) (?:training|certificat\w*|qualification\w*)|(?:training|competenc\w*|qualification\w*|certificat\w*) [^?.]*expir\w*|\bnot qualified\b|\bnot competent\b/i.test(question)) {
+    return { ...answerCompetency(c, A, user), question };
   }
   // Ownership pre-guide ("who owns RSK-0001?", "owner of NC-0002")
   if (/who (?:owns|is responsible for|is the owner of)|owner of|who(?:'s| is) in charge/i.test(question)) {

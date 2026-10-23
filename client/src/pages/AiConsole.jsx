@@ -24,6 +24,7 @@ const QUICK = [
   'Who is not qualified?',
   'What is missing from our records?',
   'Are we too dependent on one supplier?',
+  'Are our corrective actions working?',
   'Turn on dark mode'
 ];
 

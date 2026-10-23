@@ -6,6 +6,9 @@ function isArabic(s) { return /[\u0600-\u06FF]/.test(String(s || '')); }
 
 // Ordered longest-first. Modules BEFORE bare verbs (سجل المخاطر must win over سجل).
 const MODULES_AR = [
+  ['هل الإجراءات التصحيحية فعالة', 'are corrective actions effective'], ['هل نجحت الإجراءات', 'did the actions work'],
+  ['فعالية الإجراءات', 'capa effectiveness'], ['فعالية التصحيحات', 'capa effectiveness'],
+  ['التكرار بعد الإغلاق', 'recurrence after closure'],
   ['سجل المخاطر', 'risk register'], ['إدارة المخاطر', 'risk register'],
   ['مراقبة الوثائق', 'document control'], ['المستندات', 'documents'], ['الوثائق', 'documents'], ['الدليل', 'documents'],
   ['الموردين', 'suppliers'], ['المورد', 'suppliers'], ['مورد', 'suppliers'], ['البائع', 'suppliers'],
@@ -132,6 +135,7 @@ const HEADLINES = {
   competency: 'رادار الكفاءات:',
   data_health: 'فحص صحة البيانات:',
   supplier_dependency: 'رادار اعتماد الموردين:',
+  capa_effectiveness: 'فعالية الإجراءات التصحيحية:',
   supplier_trend: 'اتجاه المورّد:',
   trend_analysis: 'اتجاه المؤشرات:',
   site_guide: 'دليل الموقع:',

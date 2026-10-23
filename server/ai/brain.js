@@ -1413,6 +1413,59 @@ function answerSupplierDependency(c, A, user) {
   return a;
 }
 
+/* CAPA effectiveness: "are our corrective actions working?" — checks whether the
+ * same cause category returned after each closure, plus evidence on file. */
+function answerCapaEffectiveness(c, A, user) {
+  const a = baseAnswer('capa_effectiveness', user);
+  const events = c.nonconformances || [];
+  const acts = c.actions || [];
+  const closed = events.filter(n => n.status === 'closed' && n.closed_at);
+  const closedCat = closed.filter(n => n.root_cause_category);
+  const repeats = [];
+  for (const old of closedCat) {
+    const later = events.filter(n => n.id !== old.id && n.root_cause_category === old.root_cause_category && (n.occurred_at || n.created_at || '') > old.closed_at)
+      .sort((x, y) => (x.occurred_at || '').localeCompare(y.occurred_at || ''));
+    if (later.length) repeats.push({ old, fresh: later[0], more: later.length });
+  }
+  const effective = closedCat.length - repeats.length;
+  const rate = closedCat.length ? Math.round((effective / closedCat.length) * 100) : null;
+  const hasEvidence = ev => acts.some(x => x.source_code === ev.code && ['completed', 'verified', 'closed'].includes(x.status));
+  const noEvidence = closed.filter(ev => !hasEvidence(ev));
+  const noCat = closed.filter(ev => !ev.root_cause_category);
+
+  a.facts.push(`CAPA effectiveness — ${closed.length} closed event(s), ${closedCat.length} with a root-cause category, ${repeats.length} with the same cause category returning after closure.`);
+  if (rate != null) a.facts.push(`Effectiveness rate: ${rate}% (${effective}/${closedCat.length} closures held without a repeat of the same cause category).`);
+  if (repeats.length) {
+    a.facts.push('Recurrence after closure:');
+    for (const r of repeats.slice(0, 5)) {
+      a.facts.push(`• ${r.old.code} "${r.old.title}" closed ${r.old.closed_at} → ${r.fresh.code} "${r.fresh.title}" (${r.fresh.occurred_at || 'date n/a'}) — same cause: ${r.old.root_cause_category}`);
+      cite(a, 'NC', r.old.code, r.old.title);
+      cite(a, 'NC', r.fresh.code, r.fresh.title);
+    }
+  }
+  if (noEvidence.length) a.facts.push(`Closed without a completed/verified action: ${noEvidence.map(x => x.code).join(', ')}.`);
+  if (noCat.length) a.facts.push(`Closed without a root-cause category: ${noCat.map(x => x.code).join(', ')}.`);
+  a.facts.push(`Evidence on file: ${closed.length - noEvidence.length}/${closed.length} closure(s) have a completed or verified action.`);
+
+  if (repeats.length) a.findings.push(`${repeats.length} closure(s) did not prevent the next event — the fix treated the symptom, not the cause.`);
+  if (noEvidence.length) a.findings.push(`${noEvidence.length} event(s) were closed without a completed action — closure is not evidence-backed.`);
+  if (noCat.length) a.findings.push(`${noCat.length} closure(s) lack a root-cause category, so effectiveness cannot be measured.`);
+  if (!repeats.length && !noEvidence.length && !noCat.length) a.findings.push('No repeats found and every closure has evidence — corrective actions are holding.');
+
+  if (repeats.length) a.recommendations.push(`Re-open the effectiveness review for ${repeats.slice(0, 3).map(r => r.old.code).join(', ')} — the same cause came back.`);
+  if (noEvidence.length) a.recommendations.push(`Attach completed/verified actions before closing ${noEvidence.slice(0, 3).map(x => x.code).join(', ')} — or reopen them.`);
+  a.recommendations.push('Ask "why does this keep happening?" to test the system cause behind the repeats.');
+  a.recommendations.push('Set a 90-day effectiveness check on every new CAPA before closure.');
+
+  a.actions.push({ kind: 'navigate', label: 'Open NC & Incidents', link: '/nonconformances', primary: true, auto: false });
+  a.actions.push({ kind: 'navigate', label: 'Open actions board', link: '/actions', primary: false, auto: false });
+  a.evidence = repeats.slice(0, 10).map(r => ({
+    type: 'Recurrence', closed: r.old.code, closedOn: r.old.closed_at, cause: r.old.root_cause_category,
+    repeatedAs: r.fresh.code, occurred: r.fresh.occurred_at || null, more: r.more
+  }));
+  return a;
+}
+
 function answerMgmtDraft(c, A, user) {
   const d = managementReviewDraft(c, A, user);
   const a = baseAnswer('management_review_draft', user);
@@ -1662,6 +1715,10 @@ function askInner(question, user, ctx, depth) {
   // Supplier dependency pre-guide ("are we too dependent on one supplier?")
   if (/supplier (?:dependenc|concentration|exposure|risk|redundan)|sole[- ]source|single[- ]source|too dependent on|only one supplier|backup supplier|supply risk|which suppliers? (?:are|is)? ?(?:risky|single)/i.test(question)) {
     return { ...answerSupplierDependency(c, A, user), question };
+  }
+  // CAPA effectiveness pre-guide ("are our corrective actions working?")
+  if (/capa effectiveness|corrective actions? (?:working|effective|effectiveness)|are (?:our|the) (?:corrective )?actions working|effectiveness (?:check|review)|recurrence after|did (?:the |our )?(?:actions?|fix(?:es)?) work|prevented recurrence/i.test(question)) {
+    return { ...answerCapaEffectiveness(c, A, user), question };
   }
   // Ownership pre-guide ("who owns RSK-0001?", "owner of NC-0002")
   if (/who (?:owns|is responsible for|is the owner of)|owner of|who(?:'s| is) in charge/i.test(question)) {

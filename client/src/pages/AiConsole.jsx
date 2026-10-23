@@ -3,30 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Icon, Spinner, Badge, Modal, showToast } from '../lib/ui';
 import { AnswerBody, applyClientAction, speechSupported, useVoiceInput } from '../components/AiAssistant';
-
-const QUICK = [
-  'Brief me',
-  'Watch RSK-0001',
-  'What needs my signature?',
-  'Open documents on Quality Manual',
-  'Take me to the risk register',
-  'Create an action to call the supplier',
-  'Show me what needs attention',
-  'Escalate all overdue actions',
-  'Are we better than last month?',
-  'Are we ready for an audit?',
-  'What changed this week?',
-  'Who is overloaded?',
-  'What is at risk of slipping?',
-  'What if EQ-0007 fails?',
-  'Why does this keep happening?',
-  'Prep me for the management review',
-  'Who is not qualified?',
-  'What is missing from our records?',
-  'Are we too dependent on one supplier?',
-  'Are our corrective actions working?',
-  'Turn on dark mode'
-];
+import { AI_GROUPS, AI_PROMPT_COUNT } from '../lib/aiPrompts';
 
 export default function AiConsole() {
   const [params] = useSearchParams();
@@ -38,6 +15,8 @@ export default function AiConsole() {
   const [last, setLast] = useState(null); // previous answer => follow-ups ("open the second one")
   const [thinking, setThinking] = useState(''); // visible deep-think for big messages
   const [listening, toggleListen] = useVoiceInput(setInput);
+  const [topic, setTopic] = useState(AI_GROUPS[0].title);
+  const activeGroup = AI_GROUPS.find(g => g.title === topic) || AI_GROUPS[0];
 
   const THINK_STEPS = ['Reading your request…', 'Breaking it into jobs…', 'Checking the live data…', 'Writing the answer…'];
 
@@ -95,7 +74,15 @@ export default function AiConsole() {
         </div>
       )}
 
-      <div className="chips">{QUICK.map(q => <span key={q} className="chip" onClick={() => ask(q)}>{q}</span>)}</div>
+      <div className="ai-mini-label" style={{ marginTop: 0 }}>Browse {AI_PROMPT_COUNT} powers by topic</div>
+      <div className="ai-topic-tabs">
+        {AI_GROUPS.map(g => (
+          <button key={g.title} className={`ai-topic ${topic === g.title ? 'active' : ''}`} onClick={() => setTopic(g.title)}>
+            {g.title} <span className="ai-topic-count">{g.prompts.length}</span>
+          </button>
+        ))}
+      </div>
+      <div className="chips">{activeGroup.prompts.map(q => <span key={q} className="chip" onClick={() => ask(q)}>{q}</span>)}</div>
 
       {msgs.length === 0 && !busy && <div className="card card-pad"><div className="empty-state">Ask a question above to see the AI Brain in action.</div></div>}
       {msgs.map((m, i) => (

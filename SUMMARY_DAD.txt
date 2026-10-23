@@ -74,6 +74,7 @@ NEW: Competency-AI — "who isn't qualified?" shows coverage %, below-level asse
 NEW: Data-health-AI — "what's missing from our records?" lists incomplete records by module (no due date, no root cause, no controls, no review date) and the worst offenders. Arabic too.
 NEW: Supply-AI — "are we too dependent on one supplier?" finds sole-source categories, ranks suppliers by exposure and names the weakest link. Arabic too.
 NEW: CAPA-AI — "are our corrective actions working?" checks every closed event for the same cause returning, closure evidence, and an effectiveness rate. Arabic too.
+NEW: AI everywhere — the floating assistant now knows which page you are on (Equipment, Suppliers, NC, Risks, People…) and suggests the right powers there. All powers are grouped by topic so everything fits and stays one tap away.
 
 Login: admin@qms.io / Admin123!
 Server: http://localhost:4000

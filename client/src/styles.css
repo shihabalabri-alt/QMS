@@ -226,6 +226,21 @@ tr.row-link { cursor: pointer; }
 .chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .chip { font-size: 12px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; cursor: pointer; color: var(--primary-dark); font-weight: 600; }
 .chip:hover { background: var(--primary-soft); border-color: var(--primary); }
+.ai-context { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); margin-bottom: 7px; }
+.ai-context b { color: var(--primary-dark); font-size: 12px; }
+.ai-see-all { display: flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--primary-dark); font-size: 12px; font-weight: 700; padding: 2px 0 6px; cursor: pointer; }
+.ai-see-all:hover { text-decoration: underline; }
+.ai-chips-scroll { max-height: 210px; overflow-y: auto; padding-right: 4px; margin-bottom: 6px; }
+.ai-mini-label { font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 8px 0 5px; }
+.ai-foot-link { font-size: 12px; margin-top: 2px; }
+.ai-foot-link a { color: var(--primary-dark); font-weight: 700; text-decoration: none; }
+.ai-foot-link a:hover { text-decoration: underline; }
+.ai-topic-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ai-topic { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 9px; padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
+.ai-topic:hover { border-color: var(--primary); }
+.ai-topic.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.ai-topic-count { font-size: 10px; background: rgba(0, 0, 0, .08); border-radius: 999px; padding: 0 6px; }
+.ai-topic.active .ai-topic-count { background: rgba(255, 255, 255, .22); }
 .ai-input-bar { display: flex; gap: 9px; padding: 13px; border-top: 1px solid var(--border); background: #fff; }
 .ai-input-bar input { flex: 1; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border); font-size: 13.5px; outline: none; }
 .ai-input-bar input:focus { border-color: var(--primary); }

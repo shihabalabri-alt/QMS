@@ -1,18 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Icon, Badge, fmtDateTime, showToast } from '../lib/ui';
-
-const QUICK = [
-  'Show me what needs attention',
-  'Which risks are getting worse?',
-  'Which suppliers have repeated problems?',
-  'Which documents need review?',
-  'What information is missing?',
-  'Prepare a management review summary',
-  'Show overdue actions',
-  'How are the KPIs trending?'
-];
+import { AI_GROUPS, AI_PROMPT_COUNT, contextFor } from '../lib/aiPrompts';
 
 function SectionLabel({ kind, lang }) {
   const map = {
@@ -196,8 +186,11 @@ export default function AiAssistant() {
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState(null); // previous answer => follow-ups ("open the second one")
   const [listening, toggleListen] = useVoiceInput(setInput);
+  const [showAll, setShowAll] = useState(false);
   const [params] = useSearchParams();
   const nav = useNavigate();
+  const loc = useLocation();
+  const here = contextFor(loc.pathname);
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -238,13 +231,27 @@ export default function AiAssistant() {
               <div style={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}><Icon name="ai" /> QMS AI Brain</div>
               <div className="ai-head-sub">Grounded in your live data · human stays in control</div>
             </div>
-            <button className="icon-btn" style={{ color: '#fff' }} onClick={() => setOpen(false)}><Icon name="x" /></button>
+            <button className="icon-btn" style={{ color: '#fff' }} onClick={() => { setOpen(false); setShowAll(false); }}><Icon name="x" /></button>
           </div>
           <div className="ai-msgs">
             {msgs.length === 0 && (
               <>
                 <div className="ai-bubble"><b>Ask me anything about your QMS.</b><br /><span className="muted">I analyze relationships across incidents, risks, suppliers, equipment, documents, actions and reviews — using only real system data, with cited evidence.</span></div>
-                <div className="chips">{QUICK.map(q => <span key={q} className="chip" onClick={() => ask(q)}>{q}</span>)}</div>
+                <div className="ai-context"><Icon name="search" size={12} /> You're in <b>{here.label}</b> — suggested here</div>
+                <div className="chips">{here.prompts.map(q => <span key={q} className="chip" onClick={() => ask(q)}>{q}</span>)}</div>
+                {!showAll ? (
+                  <button className="ai-see-all" onClick={() => setShowAll(true)}><Icon name="ai" size={13} /> All {AI_PROMPT_COUNT} powers by topic</button>
+                ) : (
+                  <div className="ai-chips-scroll">
+                    {AI_GROUPS.map(g => (
+                      <div key={g.title}>
+                        <div className="ai-mini-label">{g.title}</div>
+                        <div className="chips">{g.prompts.map(q => <span key={q} className="chip" onClick={() => ask(q)}>{q}</span>)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="ai-foot-link"><Link to="/ai" onClick={() => setOpen(false)}>Open the full AI page →</Link></div>
               </>
             )}
             {msgs.map((m, i) => m.role === 'user'
